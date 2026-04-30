@@ -43,6 +43,7 @@
             <li>Confirmaciones manuales sin control</li>
           </ul>
         </div>
+
         <div class="card">
           <h2>Cómo funciona (simple)</h2>
           <ul>
@@ -57,55 +58,56 @@
         <h2>Quiero ser piloto (gratis por 7 días)</h2>
         <p>Déjame tus datos. Te escribo por WhatsApp para activarlo.</p>
 
-        <!-- Formspree (correo) -->
-        <form id="pilotForm" action="https://formspree.io/f/xrejzrgz" method="POST">
+        <!-- OJO: dejamos Formspree como fallback, pero el submit real lo maneja JS -->
+        <form id="leadForm" action="https://formspree.io/f/xrejzrgz" method="POST">
           <div class="grid">
             <div>
               <label>Nombre de la barbería</label>
               <input name="barbershopName" required placeholder="Ej: Barbería El Barrio" />
             </div>
+
             <div>
               <label>Tu WhatsApp</label>
-              <input name="whatsapp" required placeholder="Ej: 999999999" />
+              <input name="whatsapp" required placeholder="Ej: 999 999 999" />
             </div>
+
             <div>
               <label>¿Cuántas citas al día?</label>
               <select name="citasPorDia" required>
                 <option value="">Elige</option>
-                <option>1–5</option>
-                <option>6–10</option>
-                <option>11–20</option>
-                <option>20+</option>
+                <option value="1–5">1–5</option>
+                <option value="6–10">6–10</option>
+                <option value="11–20">11–20</option>
+                <option value="20+">20+</option>
               </select>
             </div>
+
             <div>
               <label>Dolor principal</label>
               <select name="dolor" required>
                 <option value="">Elige</option>
-                <option>Desorden en WhatsApp</option>
-                <option>Cancelaciones</option>
-                <option>No tengo agenda clara</option>
+                <option value="Desorden en WhatsApp">Desorden en WhatsApp</option>
+                <option value="Cancelaciones">Cancelaciones</option>
+                <option value="No tengo agenda clara">No tengo agenda clara</option>
               </select>
             </div>
           </div>
 
-          <button class="btn btn-primary" type="submit">Enviar</button>
+          <p><small>Si falla Firestore, igual intentará enviar por Formspree (fallback).</small></p>
+
+          <button id="submitBtn" class="btn btn-primary" type="submit">Enviar</button>
         </form>
       </div>
 
       <small>Hecho por Mathias — MVP en construcción</small>
     </div>
 
-    <!-- Firebase + Firestore (CDN) -->
+    <!-- Firebase + Firestore (CDN / module) -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-      import {
-        getFirestore,
-        addDoc,
-        collection,
-        Timestamp
-      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+      import { getFirestore, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+      // 🔥 TU CONFIG (según tu screenshot)
       const firebaseConfig = {
         apiKey: "AIzaSyBHny9qz-yjnk8SzYH5z1cH75_MDs2XX5g",
         authDomain: "citas-saas-mvp.firebaseapp.com",
@@ -118,42 +120,51 @@
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
 
-      const form = document.getElementById("pilotForm");
+      const form = document.getElementById("leadForm");
+      const btn = document.getElementById("submitBtn");
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
-        const fd = new FormData(form);
+        btn.disabled = true;
+        btn.textContent = "Enviando...";
+
+        const data = new FormData(form);
 
         const payload = {
-          barbershopName: (fd.get("barbershopName") || "").toString(),
-          whatsapp: (fd.get("whatsapp") || "").toString(),
-          citasPorDia: (fd.get("citasPorDia") || "").toString(),
-          dolor: (fd.get("dolor") || "").toString(),
+          barbershopName: (data.get("barbershopName") || "").toString().trim(),
+          whatsapp: (data.get("whatsapp") || "").toString().trim(),
+          citasPorDia: (data.get("citasPorDia") || "").toString(),
+          dolor: (data.get("dolor") || "").toString(),
           status: "pending",
-          createdAt: Timestamp.now()
+          createdAt: serverTimestamp()
         };
 
         try {
-          // 1) Guardar en Firestore
+          // Guardar en Firestore (colección EXACTA: "leads")
           await addDoc(collection(db, "leads"), payload);
-
-          // 2) Mandar a Formspree (correo)
-          const res = await fetch(form.action, {
-            method: "POST",
-            body: fd,
-            headers: { "Accept": "application/json" }
-          });
-
-          if (!res.ok) {
-            console.warn("Firestore OK, pero Formspree falló:", await res.text());
-          }
 
           alert("Listo ✅ Te escribimos por WhatsApp.");
           form.reset();
         } catch (err) {
-          console.error("ERROR Firestore/Formspree:", err);
-          alert("Error guardando en la base de datos. Revisa la consola (F12).");
+          console.error("Firestore error:", err);
+
+          // Fallback: enviar a Formspree si Firestore falla
+          try {
+            await fetch(form.action, {
+              method: "POST",
+              body: new FormData(form),
+              headers: { "Accept": "application/json" }
+            });
+            alert("Listo ✅ (Guardado por Formspree). Te escribimos por WhatsApp.");
+            form.reset();
+          } catch (e2) {
+            console.error("Formspree error:", e2);
+            alert("Error guardando. Abre consola (F12) y pásame el mensaje exacto.");
+          }
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Enviar";
         }
       });
     </script>
