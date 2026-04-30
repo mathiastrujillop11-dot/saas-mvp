@@ -8,7 +8,7 @@
       body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 0; }
       .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
       .card { border: 1px solid #e6e6e6; border-radius: 12px; padding: 16px; margin: 16px 0; }
-      .btn { display: inline-block; padding: 12px 16px; border-radius: 10px; text-decoration: none; border: 1px solid #111; }
+      .btn { display: inline-block; padding: 12px 16px; border-radius: 10px; text-decoration: none; border: 1px solid #111; cursor: pointer; }
       .btn-primary { background: #111; color: #fff; }
       .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
       @media (min-width: 720px){ .grid { grid-template-columns: 1fr 1fr; } }
@@ -19,6 +19,7 @@
       ul { margin: 8px 0 0 18px; }
     </style>
   </head>
+
   <body>
     <div class="wrap">
       <div class="card">
@@ -29,8 +30,8 @@
         <a class="btn btn-primary"
           href="https://wa.me/51917266464?text=Hola%2C%20quiero%20probar%20tu%20MVP%20de%20citas%20para%20barber%C3%ADa.%20Mi%20barber%C3%ADa%20se%20llama%20____.%20%C2%BFC%C3%B3mo%20empezamos%3F"
           target="_blank" rel="noopener">Pedir demo por WhatsApp</a>
-        <a class="btn"
-          href="#form">Quiero ser piloto</a>
+
+        <a class="btn" href="#form">Quiero ser piloto</a>
       </div>
 
       <div class="grid">
@@ -56,10 +57,8 @@
         <h2>Quiero ser piloto (gratis por 7 días)</h2>
         <p>Déjame tus datos. Te escribo por WhatsApp para activarlo.</p>
 
-        <form
-          action="https://formspree.io/f/xrejzrgz"
-          method="POST"
-        >
+        <!-- Formspree (correo) -->
+        <form id="pilotForm" action="https://formspree.io/f/xrejzrgz" method="POST">
           <div class="grid">
             <div>
               <label>Nombre de la barbería</label>
@@ -67,7 +66,7 @@
             </div>
             <div>
               <label>Tu WhatsApp</label>
-              <input name="whatsapp" required placeholder="Ej: 999 999 999" />
+              <input name="whatsapp" required placeholder="Ej: 999999999" />
             </div>
             <div>
               <label>¿Cuántas citas al día?</label>
@@ -90,61 +89,73 @@
             </div>
           </div>
 
-          <p><small>Nota: este formulario aún no envía nada hasta que cambiemos el link de Formspree. Lo activamos en la próxima tarea.</small></p>
-
           <button class="btn btn-primary" type="submit">Enviar</button>
         </form>
       </div>
 
       <small>Hecho por Mathias — MVP en construcción</small>
     </div>
+
+    <!-- Firebase + Firestore (CDN) -->
     <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getFirestore, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+      import {
+        getFirestore,
+        addDoc,
+        collection,
+        Timestamp
+      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-  const firebaseConfig = {
-    apiKey: "TU_API_KEY",
-    authDomain: "citas-saas-mvp.firebaseapp.com",
-    projectId: "citas-saas-mvp",
-    storageBucket: "citas-saas-mvp.firebasestorage.app",
-    messagingSenderId: "646207057968",
-    appId: "TU_APP_ID"
-  };
+      const firebaseConfig = {
+        apiKey: "AIzaSyBHny9qz-yjnk8SzYH5z1cH75_MDs2XX5g",
+        authDomain: "citas-saas-mvp.firebaseapp.com",
+        projectId: "citas-saas-mvp",
+        storageBucket: "citas-saas-mvp.firebasestorage.app",
+        messagingSenderId: "646207057968",
+        appId: "1:646207057968:web:e10fd2c87131ec0242bdf5"
+      };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
 
-  // Esto deja Firestore disponible para el resto del archivo
-  window.db = db;
-  window.addDoc = addDoc;
-  window.collection = collection;
-  window.serverTimestamp = serverTimestamp;
-</script>
-<script>
-  const form = document.querySelector("form"); // tu único formulario en la página
+      const form = document.getElementById("pilotForm");
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-    const data = new FormData(form);
+        const fd = new FormData(form);
 
-    const payload = {
-      barbershopName: data.get("barbershopName") || "",
-      whatsapp: data.get("whatsapp") || "",
-      citasPorDia: data.get("citasPorDia") || "",
-      dolor: data.get("dolor") || "",
-      createdAt: window.serverTimestamp()
-    };
+        const payload = {
+          barbershopName: (fd.get("barbershopName") || "").toString(),
+          whatsapp: (fd.get("whatsapp") || "").toString(),
+          citasPorDia: (fd.get("citasPorDia") || "").toString(),
+          dolor: (fd.get("dolor") || "").toString(),
+          status: "pending",
+          createdAt: Timestamp.now()
+        };
 
-    try {
-      await window.addDoc(window.collection(window.db, "leads"), payload);
-      alert("Listo ✅ Te escribimos por WhatsApp.");
-      form.reset();
-    } catch (err) {
-      console.error(err);
-      alert("Error guardando en la base de datos. Revisa la consola (F12).");
-    }
-  });
-</script>
+        try {
+          // 1) Guardar en Firestore
+          await addDoc(collection(db, "leads"), payload);
+
+          // 2) Mandar a Formspree (correo)
+          const res = await fetch(form.action, {
+            method: "POST",
+            body: fd,
+            headers: { "Accept": "application/json" }
+          });
+
+          if (!res.ok) {
+            console.warn("Firestore OK, pero Formspree falló:", await res.text());
+          }
+
+          alert("Listo ✅ Te escribimos por WhatsApp.");
+          form.reset();
+        } catch (err) {
+          console.error("ERROR Firestore/Formspree:", err);
+          alert("Error guardando en la base de datos. Revisa la consola (F12).");
+        }
+      });
+    </script>
   </body>
 </html>
