@@ -63,7 +63,7 @@
           <div class="grid">
             <div>
               <label>Nombre de la barbería</label>
-              <input name="barberia" required placeholder="Ej: Barbería El Barrio" />
+              <input name="barbershopName" required placeholder="Ej: Barbería El Barrio" />
             </div>
             <div>
               <label>Tu WhatsApp</label>
@@ -71,7 +71,7 @@
             </div>
             <div>
               <label>¿Cuántas citas al día?</label>
-              <select name="citas_dia" required>
+              <select name="citasPorDia" required>
                 <option value="">Elige</option>
                 <option>1–5</option>
                 <option>6–10</option>
@@ -98,5 +98,53 @@
 
       <small>Hecho por Mathias — MVP en construcción</small>
     </div>
+    <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "TU_API_KEY",
+    authDomain: "citas-saas-mvp.firebaseapp.com",
+    projectId: "citas-saas-mvp",
+    storageBucket: "citas-saas-mvp.firebasestorage.app",
+    messagingSenderId: "646207057968",
+    appId: "TU_APP_ID"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Esto deja Firestore disponible para el resto del archivo
+  window.db = db;
+  window.addDoc = addDoc;
+  window.collection = collection;
+  window.serverTimestamp = serverTimestamp;
+</script>
+<script>
+  const form = document.querySelector("form"); // tu único formulario en la página
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const data = new FormData(form);
+
+    const payload = {
+      barbershopName: data.get("barbershopName") || "",
+      whatsapp: data.get("whatsapp") || "",
+      citasPorDia: data.get("citasPorDia") || "",
+      dolor: data.get("dolor") || "",
+      createdAt: window.serverTimestamp()
+    };
+
+    try {
+      await window.addDoc(window.collection(window.db, "leads"), payload);
+      alert("Listo ✅ Te escribimos por WhatsApp.");
+      form.reset();
+    } catch (err) {
+      console.error(err);
+      alert("Error guardando en la base de datos. Revisa la consola (F12).");
+    }
+  });
+</script>
   </body>
 </html>
