@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Citas para barberías | MVP</title>
     <style>
-      body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 0; }
+      body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 0; background:#fff; }
       .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
       .card { border: 1px solid #e6e6e6; border-radius: 12px; padding: 16px; margin: 16px 0; }
-      .btn { display: inline-block; padding: 12px 16px; border-radius: 10px; text-decoration: none; border: 1px solid #111; cursor: pointer; }
+      .btn { display: inline-block; padding: 12px 16px; border-radius: 10px; text-decoration: none; border: 1px solid #111; cursor:pointer; }
       .btn-primary { background: #111; color: #fff; }
       .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
       @media (min-width: 720px){ .grid { grid-template-columns: 1fr 1fr; } }
@@ -17,7 +17,6 @@
       h1 { margin: 8px 0 6px; }
       h2 { margin: 0 0 10px; }
       ul { margin: 8px 0 0 18px; }
-      #msg { display:block; margin-top: 10px; }
     </style>
   </head>
 
@@ -33,6 +32,7 @@
           target="_blank" rel="noopener">Pedir demo por WhatsApp</a>
 
         <a class="btn" href="#form">Quiero ser piloto</a>
+        <a class="btn" href="#agendar">Agendar cita</a>
       </div>
 
       <div class="grid">
@@ -54,11 +54,11 @@
         </div>
       </div>
 
+      <!-- FORM 1: LEADS -->
       <div class="card" id="form">
         <h2>Quiero ser piloto (gratis por 7 días)</h2>
         <p>Déjame tus datos. Te escribo por WhatsApp para activarlo.</p>
 
-        <!-- IMPORTANTE: el form ENVUELVE todo -->
         <form id="leadForm">
           <div class="grid">
             <div>
@@ -93,20 +93,60 @@
             </div>
           </div>
 
-          <button class="btn btn-primary" type="submit">Enviar</button>
-          <small id="msg"></small>
+          <button class="btn btn-primary" type="submit" id="leadBtn">Enviar</button>
+        </form>
+      </div>
+
+      <!-- FORM 2: APPOINTMENTS -->
+      <div class="card" id="agendar">
+        <h2>Agendar cita</h2>
+        <p>Completa esto y te confirmamos por WhatsApp.</p>
+
+        <form id="appointmentForm">
+          <div class="grid">
+            <div>
+              <label>Nombre del cliente</label>
+              <input name="customerName" required placeholder="Ej: Juan Pérez" />
+            </div>
+
+            <div>
+              <label>WhatsApp del cliente</label>
+              <input name="customerPhone" required placeholder="Ej: 999 999 999" />
+            </div>
+
+            <div>
+              <label>Servicio</label>
+              <select name="service" required>
+                <option value="">Elige</option>
+                <option value="Corte">Corte</option>
+                <option value="Barba">Barba</option>
+                <option value="Corte + Barba">Corte + Barba</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Fecha</label>
+              <input type="date" name="date" required />
+            </div>
+
+            <div>
+              <label>Hora</label>
+              <input type="time" name="time" required />
+            </div>
+          </div>
+
+          <button class="btn btn-primary" type="submit" id="appointmentBtn">Agendar</button>
         </form>
       </div>
 
       <small>Hecho por Mathias — MVP en construcción</small>
     </div>
 
-    <!-- Firebase (CDN modular) -->
+    <!-- Firebase (CDN) -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
       import { getFirestore, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-      // ✅ TU CONFIG REAL (según tu screenshot de "Config")
       const firebaseConfig = {
         apiKey: "AIzaSyBHny9qz-yjnk8SzYH5z1cH75_MDs2XX5g",
         authDomain: "citas-saas-mvp.firebaseapp.com",
@@ -119,51 +159,81 @@
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
 
-      // Exponer helpers para el script normal
+      // hacer disponible para el script normal
       window.db = db;
       window.addDoc = addDoc;
       window.collection = collection;
       window.serverTimestamp = serverTimestamp;
     </script>
 
-    <!-- Submit: Firestore + Formspree -->
+    <!-- Guardar en Firestore -->
     <script>
-      const FORMSPREE_URL = "https://formspree.io/f/xrejzrgz";
+      // 1) LEADS
+      const leadForm = document.getElementById("leadForm");
+      const leadBtn = document.getElementById("leadBtn");
 
-      const form = document.getElementById("leadForm");
-      const msg = document.getElementById("msg");
-
-      form.addEventListener("submit", async (e) => {
+      leadForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-        msg.textContent = "Enviando...";
 
-        const data = new FormData(form);
+        leadBtn.disabled = true;
+        leadBtn.textContent = "Enviando...";
+
+        const data = new FormData(leadForm);
 
         const payload = {
           barbershopName: data.get("barbershopName") || "",
           whatsapp: data.get("whatsapp") || "",
           citasPorDia: data.get("citasPorDia") || "",
           dolor: data.get("dolor") || "",
+          status: "pending",
           createdAt: window.serverTimestamp()
         };
 
         try {
-          // 1) Guardar en Firestore
           await window.addDoc(window.collection(window.db, "leads"), payload);
-
-          // 2) Enviar a Formspree para correo
-          await fetch(FORMSPREE_URL, {
-            method: "POST",
-            headers: { "Accept": "application/json" },
-            body: data
-          });
-
-          msg.textContent = "Listo ✅ Te escribimos por WhatsApp.";
-          form.reset();
+          alert("Listo ✅ Te escribimos por WhatsApp.");
+          leadForm.reset();
         } catch (err) {
           console.error(err);
-          msg.textContent = "Error. Abre F12 → Console.";
-          alert("Error guardando/enviando. Revisa consola (F12).");
+          alert("Error guardando el lead. Abre Consola (F12) y dime qué error sale.");
+        } finally {
+          leadBtn.disabled = false;
+          leadBtn.textContent = "Enviar";
+        }
+      });
+
+      // 2) APPOINTMENTS
+      const appointmentForm = document.getElementById("appointmentForm");
+      const appointmentBtn = document.getElementById("appointmentBtn");
+
+      appointmentForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        appointmentBtn.disabled = true;
+        appointmentBtn.textContent = "Guardando...";
+
+        const data = new FormData(appointmentForm);
+
+        const payload = {
+          customerName: data.get("customerName") || "",
+          customerPhone: data.get("customerPhone") || "",
+          service: data.get("service") || "",
+          date: data.get("date") || "",
+          time: data.get("time") || "",
+          status: "pending",
+          createdAt: window.serverTimestamp()
+        };
+
+        try {
+          await window.addDoc(window.collection(window.db, "appointments"), payload);
+          alert("Cita registrada ✅");
+          appointmentForm.reset();
+        } catch (err) {
+          console.error(err);
+          alert("No se pudo guardar la cita. Abre Consola (F12) y dime qué error sale.");
+        } finally {
+          appointmentBtn.disabled = false;
+          appointmentBtn.textContent = "Agendar";
         }
       });
     </script>
