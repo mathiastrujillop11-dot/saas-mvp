@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Citas SaaS MVP</title>
+  <style>
+    body{font-family:system-ui,Arial,sans-serif;margin:0;background:#0b0b0f;color:#fff}
+    .wrap{max-width:1000px;margin:0 auto;padding:24px}
+    .card{background:#151522;border:1px solid #2a2a3a;border-radius:14px;padding:16px;margin:14px 0}
+    input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #3a3a55;background:#0f0f18;color:#fff}
+    .row{display:grid;gap:12px;grid-template-columns:1fr}
+    @media(min-width:900px){.row{grid-template-columns:1fr 1fr}}
+    .btn{display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #fff;background:transparent;color:#fff;cursor:pointer}
+    .btn.primary{background:#fff;color:#0b0b0f;border-color:#fff}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #2a2a3a;padding:10px;text-align:left;font-size:14px;vertical-align:top}
+    small{color:#b9b9d3}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid #2a2a3a}
+    .topbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h1 style="margin:0;">Admin — Leads</h1>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <span id="userBadge" class="pill">No logueado</span>
+        <button id="logoutBtn" class="btn" style="display:none;">Salir</button>
+      </div>
+    </div>
+
+    <div id="loginCard" class="card">
+      <h2 style="margin-top:0;">Ingresar</h2>
+      <div class="row">
+        <div>
+          <label>Correo</label>
+          <input id="email" type="email" placeholder="tu correo" />
+        </div>
+        <div>
+          <label>Contraseña</label>
+          <input id="password" type="password" placeholder="tu contraseña" />
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button id="loginBtn" class="btn primary">Entrar</button>
+        <button id="signupBtn" class="btn">Crear cuenta (solo 1 vez)</button>
+      </div>
+      <p><small>Tip: crea tu cuenta una vez y luego solo “Entrar”.</small></p>
+      <div id="loginMsg"></div>
+    </div>
+
+    <div id="dataCard" class="card" style="display:none;">
+      <div class="topbar">
+        <div>
+          <h2 style="margin:0;">Leads guardados</h2>
+          <small>Se cargan desde Firestore (colección: <b>leads</b>)</small>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <select id="statusFilter">
+            <option value="">Todos</option>
+            <option value="pending">pending</option>
+            <option value="contacted">contacted</option>
+            <option value="closed">closed</option>
+          </select>
+          <button id="refreshBtn" class="btn">Actualizar</button>
+        </div>
+      </div>
+
+      <div style="overflow:auto;margin-top:10px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Barbería</th>
+              <th>WhatsApp</th>
+              <th>Citas/día</th>
+              <th>Dolor</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div id="dataMsg" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore, collection, getDocs, query, where, orderBy, updateDoc, doc
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import {
+      getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBHny9qz-yjnk8SzYH5z1cH75_MDs2XX5g",
+      authDomain: "citas-saas-mvp.firebaseapp.com",
+      projectId: "citas-saas-mvp",
+      storageBucket: "citas-saas-mvp.firebasestorage.app",
+      messagingSenderId: "646207057968",
+      appId: "1:646207057968:web:e10fd2c87131ec0242bdf5"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    const loginCard = document.getElementById("loginCard");
+    const dataCard = document.getElementById("dataCard");
+    const rows = document.getElementById("rows");
+    const loginMsg = document.getElementById("loginMsg");
+    const dataMsg = document.getElementById("dataMsg");
+    const userBadge = document.getElementById("userBadge");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    const emailEl = document.getElementById("email");
+    const passEl  = document.getElementById("password");
+
+    const statusFilter = document.getElementById("statusFilter");
+    const refreshBtn = document.getElementById("refreshBtn");
+
+    function showMsg(el, text, ok=true){
+      el.innerHTML = `<p style="color:${ok ? "#8bffb0" : "#ff8b8b"};margin:10px 0 0;">${text}</p>`;
+    }
+
+    async function loadLeads(){
+      rows.innerHTML = "";
+      dataMsg.innerHTML = "";
+
+      try{
+        const leadsRef = collection(db, "leads");
+        let qy = query(leadsRef, orderBy("createdAt", "desc"));
+
+        const st = statusFilter.value;
+        if(st){
+          qy = query(leadsRef, where("status", "==", st), orderBy("createdAt", "desc"));
+        }
+
+        const snap = await getDocs(qy);
+
+        if(snap.empty){
+          showMsg(dataMsg, "No hay leads todavía.", true);
+          return;
+        }
+
+        snap.forEach((d) => {
+          const lead = d.data();
+          const tr = document.createElement("tr");
+
+          const phone = (lead.whatsapp || "").replace(/\s+/g,"");
+          const waLink = phone ? `https://wa.me/51${phone}?text=Hola%20%F0%9F%91%8B%20vi%20tu%20registro%20para%20el%20piloto%20de%20citas.` : "#";
+
+          const status = lead.status || "pending";
+
+          tr.innerHTML = `
+            <td>${lead.barbershopName || "-"}</td>
+            <td>${lead.whatsapp || "-"}<br><small>${lead.createdAt?.toDate ? lead.createdAt.toDate().toLocaleString() : ""}</small></td>
+            <td>${lead.citasPorDia || "-"}</td>
+            <td>${lead.dolor || "-"}</td>
+            <td>
+              <select data-id="${d.id}" class="statusSel">
+                <option ${status==="pending"?"selected":""}>pending</option>
+                <option ${status==="contacted"?"selected":""}>contacted</option>
+                <option ${status==="closed"?"selected":""}>closed</option>
+              </select>
+            </td>
+            <td>
+              <a class="btn" target="_blank" rel="noopener" href="${waLink}">WhatsApp</a>
+              <button class="btn primary saveBtn" data-id="${d.id}">Guardar</button>
+            </td>
+          `;
+          rows.appendChild(tr);
+        });
+
+        // listeners para guardar cambios de status
+        document.querySelectorAll(".saveBtn").forEach(btn=>{
+          btn.addEventListener("click", async ()=>{
+            const id = btn.getAttribute("data-id");
+            const sel = document.querySelector(`.statusSel[data-id="${id}"]`);
+            const newStatus = sel.value;
+
+            try{
+              await updateDoc(doc(db, "leads", id), { status: newStatus });
+              showMsg(dataMsg, "Estado actualizado ✅", true);
+            }catch(err){
+              console.error(err);
+              showMsg(dataMsg, "No se pudo actualizar (revisa Rules / login).", false);
+            }
+          });
+        });
+
+      }catch(err){
+        console.error(err);
+        showMsg(dataMsg, "Error cargando leads. Revisa consola (F12).", false);
+      }
+    }
+
+    // auth flow
+    document.getElementById("loginBtn").addEventListener("click", async ()=>{
+      loginMsg.innerHTML = "";
+      try{
+        await signInWithEmailAndPassword(auth, emailEl.value.trim(), passEl.value.trim());
+      }catch(err){
+        console.error(err);
+        showMsg(loginMsg, err.message, false);
+      }
+    });
+
+    document.getElementById("signupBtn").addEventListener("click", async ()=>{
+      loginMsg.innerHTML = "";
+      try{
+        await createUserWithEmailAndPassword(auth, emailEl.value.trim(), passEl.value.trim());
+        showMsg(loginMsg, "Cuenta creada ✅ Ahora ya puedes entrar siempre.", true);
+      }catch(err){
+        console.error(err);
+        showMsg(loginMsg, err.message, false);
+      }
+    });
+
+    logoutBtn.addEventListener("click", ()=> signOut(auth));
+
+    refreshBtn.addEventListener("click", loadLeads);
+    statusFilter.addEventListener("change", loadLeads);
+
+    onAuthStateChanged(auth, (user)=>{
+      if(user){
+        userBadge.textContent = user.email;
+        logoutBtn.style.display = "inline-block";
+        loginCard.style.display = "none";
+        dataCard.style.display = "block";
+        loadLeads();
+      } else {
+        userBadge.textContent = "No logueado";
+        logoutBtn.style.display = "none";
+        loginCard.style.display = "block";
+        dataCard.style.display = "none";
+      }
+    });
+  </script>
+</body>
+</html>
