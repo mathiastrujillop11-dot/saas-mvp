@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin — Citas SaaS MVP</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css" />
 </head>
 
 <body>
@@ -17,6 +17,7 @@
       </div>
     </div>
 
+    <!-- LOGIN -->
     <div id="loginCard" class="card">
       <h2 style="margin-top:0;">Ingresar</h2>
 
@@ -33,23 +34,25 @@
 
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
         <button id="loginBtn" class="btn primary">Entrar</button>
-        <button id="resetBtn" class="btn">Olvidé mi contraseña</button>
+        <button id="signupBtn" class="btn">Crear cuenta (solo 1 vez)</button>
       </div>
 
+      <p><small>Si ya tienes cuenta, usa solo “Entrar”.</small></p>
       <div id="loginMsg"></div>
     </div>
 
+    <!-- DATA -->
     <div id="dataCard" class="card" style="display:none;">
       <div class="topbar">
         <div>
           <h2 style="margin:0;">Leads guardados</h2>
-          <small>colección: <b>leads</b></small>
+          <small>Se cargan desde Firestore (colección: <b>leads</b>)</small>
         </div>
 
         <div style="display:flex;gap:10px;align-items:center;">
           <select id="statusFilter">
-            <option value="pending" selected>pending</option>
             <option value="">Todos</option>
+            <option value="pending">pending</option>
             <option value="contacted">contacted</option>
             <option value="closed">closed</option>
           </select>
@@ -80,10 +83,10 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
-      getFirestore, collection, getDocs, query, where, orderBy, updateDoc, doc
+      getFirestore, collection, getDocs, query, orderBy, updateDoc, doc
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import {
-      getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail
+      getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
     const firebaseConfig = {
@@ -99,6 +102,7 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
 
+    // UI refs
     const loginCard = document.getElementById("loginCard");
     const dataCard  = document.getElementById("dataCard");
     const rows      = document.getElementById("rows");
@@ -106,19 +110,35 @@
     const dataMsg   = document.getElementById("dataMsg");
     const userBadge = document.getElementById("userBadge");
     const logoutBtn = document.getElementById("logoutBtn");
+
     const emailEl   = document.getElementById("email");
     const passEl    = document.getElementById("password");
+
     const statusFilter = document.getElementById("statusFilter");
     const refreshBtn   = document.getElementById("refreshBtn");
 
-    function showMsg(el, text, ok=true){
+    let loading = false;
+
+    function showMsg(el, text, ok = true) {
       el.innerHTML = `<p style="color:${ok ? "#8bffb0" : "#ff8b8b"};margin:10px 0 0;">${text}</p>`;
     }
 
-    let loading = false;
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (m) => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+      }[m]));
+    }
 
-    async function loadLeads(){
-      if(loading) return;
+    function buildWhatsAppLink(phoneRaw) {
+      const phone = (phoneRaw || "").replace(/\D+/g, ""); // solo números
+      if (!phone) return "#";
+      // Si ya comienza con 51, no lo duplicamos
+      const finalPhone = phone.startsWith("51") ? phone : ("51" + phone);
+      return `https://wa.me/${finalPhone}?text=${encodeURIComponent("Hola 👋 vi tu registro para el piloto de citas. ¿Te ayudo a activarlo?")}`;
+    }
+
+    async function loadLeads() {
+      if (loading) return;
       loading = true;
 
       rows.innerHTML = "";
@@ -126,37 +146,42 @@
       refreshBtn.disabled = true;
       refreshBtn.textContent = "Cargando...";
 
-      try{
+      try {
         const leadsRef = collection(db, "leads");
-        const st = statusFilter.value;
 
-        let qy = query(leadsRef, orderBy("createdAt", "desc"));
-        if(st){
-          qy = query(leadsRef, where("status", "==", st), orderBy("createdAt", "desc"));
-        }
+        // ✅ Esto evita el error "requires an index"
+        const qy = query(leadsRef, orderBy("createdAt", "desc"));
 
         const snap = await getDocs(qy);
 
-        if(snap.empty){
-          showMsg(dataMsg, "No hay leads.", true);
+        if (snap.empty) {
+          showMsg(dataMsg, "No hay leads todavía.", true);
           return;
         }
 
-        snap.forEach((d)=>{
+        const filter = statusFilter.value; // "" | pending | contacted | closed
+
+        snap.forEach((d) => {
           const lead = d.data();
-          const tr = document.createElement("tr");
-          const phone = (lead.whatsapp || "").replace(/\D/g,"");
-          const waLink = phone ? `https://wa.me/51${phone}?text=Hola%20👋%20vi%20tu%20registro%20para%20el%20piloto.` : "#";
-          const status = lead.status || "pending";
+          const status = (lead.status || "pending");
+
+          // filtro en frontend (sin índices)
+          if (filter && status !== filter) return;
+
+          const waLink = buildWhatsAppLink(lead.whatsapp);
+
           const created = lead.createdAt?.toDate ? lead.createdAt.toDate().toLocaleString() : "";
 
+          const tr = document.createElement("tr");
+          tr.dataset.id = d.id;
+
           tr.innerHTML = `
-            <td>${lead.barbershopName || "-"}</td>
-            <td>${lead.whatsapp || "-"}<br><small>${created}</small></td>
-            <td>${lead.citasPorDia || "-"}</td>
-            <td>${lead.dolor || "-"}</td>
+            <td>${esc(lead.barbershopName || "-")}</td>
+            <td>${esc(lead.whatsapp || "-")}<br><small>${esc(created)}</small></td>
+            <td>${esc(lead.citasPorDia || "-")}</td>
+            <td>${esc(lead.dolor || "-")}</td>
             <td>
-              <select data-id="${d.id}" class="statusSel">
+              <select class="statusSel">
                 <option value="pending" ${status==="pending"?"selected":""}>pending</option>
                 <option value="contacted" ${status==="contacted"?"selected":""}>contacted</option>
                 <option value="closed" ${status==="closed"?"selected":""}>closed</option>
@@ -164,89 +189,97 @@
             </td>
             <td>
               <a class="btn" target="_blank" rel="noopener" href="${waLink}">WhatsApp</a>
-              <button class="btn primary saveBtn" data-id="${d.id}">Guardar</button>
+              <button class="btn primary saveBtn">Guardar</button>
             </td>
           `;
+
           rows.appendChild(tr);
         });
 
-        document.querySelectorAll(".saveBtn").forEach(btn=>{
-          btn.addEventListener("click", async ()=>{
-            const id = btn.dataset.id;
-            const sel = document.querySelector(`.statusSel[data-id="${id}"]`);
-            const newStatus = sel.value;
+        if (!rows.children.length) {
+          showMsg(dataMsg, "No hay leads para ese filtro.", true);
+        }
 
-            btn.disabled = true;
-            const old = btn.textContent;
-            btn.textContent = "Guardando...";
-
-            try{
-              await updateDoc(doc(db,"leads",id), { status:newStatus });
-              showMsg(dataMsg, "Guardado ✅", true);
-              await loadLeads();
-            }catch(err){
-              console.error(err);
-              showMsg(dataMsg, "No se pudo guardar.", false);
-            }finally{
-              btn.disabled = false;
-              btn.textContent = old;
-            }
-          });
-        });
-
-      }catch(err){
+      } catch (err) {
         console.error(err);
-        showMsg(dataMsg, "Error cargando.", false);
-      }finally{
+        showMsg(dataMsg, "Error cargando leads. Abre consola (F12) y manda captura.", false);
+      } finally {
+        loading = false;
         refreshBtn.disabled = false;
         refreshBtn.textContent = "Actualizar";
-        loading = false;
       }
     }
 
-    // ENTRAR
-    document.getElementById("loginBtn").addEventListener("click", async ()=>{
-      loginMsg.innerHTML = "";
-      const email = emailEl.value.trim();
-      const pass  = passEl.value;
+    // ✅ Un solo listener para toda la tabla (evita duplicados al refrescar)
+    rows.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".saveBtn");
+      if (!btn) return;
 
-      try{
-        await signInWithEmailAndPassword(auth, email, pass);
-      }catch(err){
+      const tr = btn.closest("tr");
+      const id = tr?.dataset?.id;
+      if (!id) return;
+
+      const sel = tr.querySelector(".statusSel");
+      const newStatus = sel.value;
+
+      btn.disabled = true;
+      btn.textContent = "Guardando...";
+
+      try {
+        await updateDoc(doc(db, "leads", id), { status: newStatus });
+        showMsg(dataMsg, "Estado actualizado ✅", true);
+
+        // ✅ Si hay filtro activo, y ya no cumple, lo quitamos de la tabla sin recargar
+        const filter = statusFilter.value;
+        if (filter && newStatus !== filter) {
+          tr.remove();
+        }
+
+      } catch (err) {
+        console.error(err);
+        showMsg(dataMsg, "No se pudo actualizar (revisa Rules / login).", false);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Guardar";
+      }
+    });
+
+    // LOGIN
+    document.getElementById("loginBtn").addEventListener("click", async () => {
+      loginMsg.innerHTML = "";
+      try {
+        await signInWithEmailAndPassword(auth, emailEl.value.trim(), passEl.value.trim());
+      } catch (err) {
         console.error(err);
         showMsg(loginMsg, err.message, false);
       }
     });
 
-    // RESET PASS
-    document.getElementById("resetBtn").addEventListener("click", async ()=>{
+    document.getElementById("signupBtn").addEventListener("click", async () => {
       loginMsg.innerHTML = "";
-      const email = emailEl.value.trim();
-      if(!email){
-        showMsg(loginMsg, "Escribe tu correo primero.", false);
-        return;
-      }
-      try{
-        await sendPasswordResetEmail(auth, email);
-        showMsg(loginMsg, "Te envié un correo para cambiar tu contraseña ✅", true);
-      }catch(err){
+      try {
+        await createUserWithEmailAndPassword(auth, emailEl.value.trim(), passEl.value.trim());
+        showMsg(loginMsg, "Cuenta creada ✅ Ahora ya puedes entrar siempre.", true);
+      } catch (err) {
         console.error(err);
         showMsg(loginMsg, err.message, false);
       }
     });
 
-    logoutBtn.addEventListener("click", ()=>signOut(auth));
+    logoutBtn.addEventListener("click", () => signOut(auth));
+
     refreshBtn.addEventListener("click", loadLeads);
     statusFilter.addEventListener("change", loadLeads);
 
-    onAuthStateChanged(auth, (user)=>{
-      if(user){
+    // AUTH STATE
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
         userBadge.textContent = user.email;
         logoutBtn.style.display = "inline-block";
         loginCard.style.display = "none";
         dataCard.style.display = "block";
         loadLeads();
-      }else{
+      } else {
         userBadge.textContent = "No logueado";
         logoutBtn.style.display = "none";
         loginCard.style.display = "block";
