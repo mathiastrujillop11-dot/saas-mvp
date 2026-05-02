@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin — Citas SaaS MVP</title>
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style.css">
 </head>
 
 <body>
@@ -17,38 +17,32 @@
       </div>
     </div>
 
-    <!-- LOGIN -->
     <div id="loginCard" class="card">
       <h2 style="margin-top:0;">Ingresar</h2>
-
       <div class="row">
         <div>
           <label>Correo</label>
-          <input id="email" type="email" placeholder="tu correo" autocomplete="email" />
+          <input id="email" type="email" placeholder="tu correo" autocomplete="username" />
         </div>
         <div>
           <label>Contraseña</label>
           <input id="password" type="password" placeholder="tu contraseña" autocomplete="current-password" />
         </div>
       </div>
-
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
-        <button id="loginBtn" class="btn primary">Entrar</button>
-        <button id="signupBtn" class="btn">Crear cuenta (solo 1 vez)</button>
+        <button id="loginBtn" class="btn primary" type="button">Entrar</button>
+        <button id="signupBtn" class="btn" type="button">Crear cuenta (solo 1 vez)</button>
       </div>
-
-      <p><small>Si ya tienes cuenta, usa solo “Entrar”.</small></p>
+      <p><small>Tip: crea tu cuenta una vez y luego solo “Entrar”.</small></p>
       <div id="loginMsg"></div>
     </div>
 
-    <!-- DATA -->
     <div id="dataCard" class="card" style="display:none;">
       <div class="topbar">
         <div>
           <h2 style="margin:0;">Leads guardados</h2>
           <small>Se cargan desde Firestore (colección: <b>leads</b>)</small>
         </div>
-
         <div style="display:flex;gap:10px;align-items:center;">
           <select id="statusFilter">
             <option value="">Todos</option>
@@ -56,7 +50,7 @@
             <option value="contacted">contacted</option>
             <option value="closed">closed</option>
           </select>
-          <button id="refreshBtn" class="btn">Actualizar</button>
+          <button id="refreshBtn" class="btn" type="button">Actualizar</button>
         </div>
       </div>
 
@@ -82,12 +76,8 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import {
-      getFirestore, collection, getDocs, query, orderBy, updateDoc, doc
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import {
-      getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, collection, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBHny9qz-yjnk8SzYH5z1cH75_MDs2XX5g",
@@ -102,7 +92,6 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
 
-    // UI refs
     const loginCard = document.getElementById("loginCard");
     const dataCard  = document.getElementById("dataCard");
     const rows      = document.getElementById("rows");
@@ -111,169 +100,154 @@
     const userBadge = document.getElementById("userBadge");
     const logoutBtn = document.getElementById("logoutBtn");
 
-    const emailEl   = document.getElementById("email");
-    const passEl    = document.getElementById("password");
+    const emailEl = document.getElementById("email");
+    const passEl  = document.getElementById("password");
 
     const statusFilter = document.getElementById("statusFilter");
     const refreshBtn   = document.getElementById("refreshBtn");
 
     let loading = false;
+    let allLeadsCache = []; // aquí guardamos TODO y filtramos sin índices
 
-    function showMsg(el, text, ok = true) {
+    function showMsg(el, text, ok=true){
       el.innerHTML = `<p style="color:${ok ? "#8bffb0" : "#ff8b8b"};margin:10px 0 0;">${text}</p>`;
     }
 
-    function esc(s) {
-      return String(s ?? "").replace(/[&<>"']/g, (m) => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-      }[m]));
+    function normalizePhone(phone){
+      return (phone || "").replace(/\D+/g, ""); // deja solo números
     }
 
-    function buildWhatsAppLink(phoneRaw) {
-      const phone = (phoneRaw || "").replace(/\D+/g, ""); // solo números
-      if (!phone) return "#";
-      // Si ya comienza con 51, no lo duplicamos
-      const finalPhone = phone.startsWith("51") ? phone : ("51" + phone);
-      return `https://wa.me/${finalPhone}?text=${encodeURIComponent("Hola 👋 vi tu registro para el piloto de citas. ¿Te ayudo a activarlo?")}`;
+    function sortByCreatedAtDesc(a, b){
+      const ta = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+      const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+      return tb - ta;
     }
 
-    async function loadLeads() {
-      if (loading) return;
-      loading = true;
-
+    function renderRows(){
       rows.innerHTML = "";
       dataMsg.innerHTML = "";
+
+      const st = statusFilter.value;
+      const filtered = st ? allLeadsCache.filter(x => (x.status || "pending") === st) : allLeadsCache;
+
+      if(filtered.length === 0){
+        showMsg(dataMsg, "No hay leads para ese filtro.", true);
+        return;
+      }
+
+      filtered.forEach((lead) => {
+        const tr = document.createElement("tr");
+
+        const phone = normalizePhone(lead.whatsapp);
+        const waLink = phone ? `https://wa.me/51${phone}?text=Hola%20%F0%9F%91%8B%20vi%20tu%20registro%20para%20el%20piloto%20de%20citas.` : "#";
+        const status = lead.status || "pending";
+        const created = lead.createdAt?.toDate ? lead.createdAt.toDate().toLocaleString() : "";
+
+        tr.innerHTML = `
+          <td>${lead.barbershopName || "-"}</td>
+          <td>${lead.whatsapp || "-"}<br><small>${created}</small></td>
+          <td>${lead.citasPorDia || "-"}</td>
+          <td>${lead.dolor || "-"}</td>
+          <td>
+            <select data-id="${lead.id}" class="statusSel">
+              <option value="pending"   ${status==="pending"?"selected":""}>pending</option>
+              <option value="contacted" ${status==="contacted"?"selected":""}>contacted</option>
+              <option value="closed"    ${status==="closed"?"selected":""}>closed</option>
+            </select>
+          </td>
+          <td>
+            <a class="btn" target="_blank" rel="noopener" href="${waLink}">WhatsApp</a>
+            <button class="btn primary saveBtn" data-id="${lead.id}" type="button">Guardar</button>
+          </td>
+        `;
+
+        rows.appendChild(tr);
+      });
+
+      // Un solo set de listeners, sin duplicar:
+      document.querySelectorAll(".saveBtn").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-id");
+          const sel = document.querySelector(`.statusSel[data-id="${id}"]`);
+          const newStatus = sel.value;
+
+          btn.disabled = true;
+          btn.textContent = "Guardando...";
+
+          try{
+            await updateDoc(doc(db, "leads", id), { status: newStatus });
+
+            // actualiza cache local
+            allLeadsCache = allLeadsCache.map(x => x.id === id ? { ...x, status: newStatus } : x);
+
+            showMsg(dataMsg, "Estado actualizado ✅", true);
+
+            // re-render para que, si hay filtro activo, desaparezca
+            renderRows();
+          }catch(err){
+            console.error(err);
+            showMsg(dataMsg, "No se pudo actualizar. Revisa consola (F12).", false);
+          }finally{
+            btn.disabled = false;
+            btn.textContent = "Guardar";
+          }
+        });
+      });
+    }
+
+    async function loadLeads(){
+      if(loading) return;
+      loading = true;
       refreshBtn.disabled = true;
       refreshBtn.textContent = "Cargando...";
 
-      try {
-        const leadsRef = collection(db, "leads");
+      try{
+        const snap = await getDocs(collection(db, "leads"));
+        const arr = [];
+        snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
+        arr.sort(sortByCreatedAtDesc);
 
-        // ✅ Esto evita el error "requires an index"
-        const qy = query(leadsRef, orderBy("createdAt", "desc"));
-
-        const snap = await getDocs(qy);
-
-        if (snap.empty) {
-          showMsg(dataMsg, "No hay leads todavía.", true);
-          return;
-        }
-
-        const filter = statusFilter.value; // "" | pending | contacted | closed
-
-        snap.forEach((d) => {
-          const lead = d.data();
-          const status = (lead.status || "pending");
-
-          // filtro en frontend (sin índices)
-          if (filter && status !== filter) return;
-
-          const waLink = buildWhatsAppLink(lead.whatsapp);
-
-          const created = lead.createdAt?.toDate ? lead.createdAt.toDate().toLocaleString() : "";
-
-          const tr = document.createElement("tr");
-          tr.dataset.id = d.id;
-
-          tr.innerHTML = `
-            <td>${esc(lead.barbershopName || "-")}</td>
-            <td>${esc(lead.whatsapp || "-")}<br><small>${esc(created)}</small></td>
-            <td>${esc(lead.citasPorDia || "-")}</td>
-            <td>${esc(lead.dolor || "-")}</td>
-            <td>
-              <select class="statusSel">
-                <option value="pending" ${status==="pending"?"selected":""}>pending</option>
-                <option value="contacted" ${status==="contacted"?"selected":""}>contacted</option>
-                <option value="closed" ${status==="closed"?"selected":""}>closed</option>
-              </select>
-            </td>
-            <td>
-              <a class="btn" target="_blank" rel="noopener" href="${waLink}">WhatsApp</a>
-              <button class="btn primary saveBtn">Guardar</button>
-            </td>
-          `;
-
-          rows.appendChild(tr);
-        });
-
-        if (!rows.children.length) {
-          showMsg(dataMsg, "No hay leads para ese filtro.", true);
-        }
-
-      } catch (err) {
+        allLeadsCache = arr;
+        renderRows();
+      }catch(err){
         console.error(err);
-        showMsg(dataMsg, "Error cargando leads. Abre consola (F12) y manda captura.", false);
-      } finally {
+        showMsg(dataMsg, "Error cargando leads. Revisa consola (F12).", false);
+      }finally{
         loading = false;
         refreshBtn.disabled = false;
         refreshBtn.textContent = "Actualizar";
       }
     }
 
-    // ✅ Un solo listener para toda la tabla (evita duplicados al refrescar)
-    rows.addEventListener("click", async (e) => {
-      const btn = e.target.closest(".saveBtn");
-      if (!btn) return;
-
-      const tr = btn.closest("tr");
-      const id = tr?.dataset?.id;
-      if (!id) return;
-
-      const sel = tr.querySelector(".statusSel");
-      const newStatus = sel.value;
-
-      btn.disabled = true;
-      btn.textContent = "Guardando...";
-
-      try {
-        await updateDoc(doc(db, "leads", id), { status: newStatus });
-        showMsg(dataMsg, "Estado actualizado ✅", true);
-
-        // ✅ Si hay filtro activo, y ya no cumple, lo quitamos de la tabla sin recargar
-        const filter = statusFilter.value;
-        if (filter && newStatus !== filter) {
-          tr.remove();
-        }
-
-      } catch (err) {
-        console.error(err);
-        showMsg(dataMsg, "No se pudo actualizar (revisa Rules / login).", false);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "Guardar";
-      }
-    });
-
     // LOGIN
-    document.getElementById("loginBtn").addEventListener("click", async () => {
+    document.getElementById("loginBtn").addEventListener("click", async ()=>{
       loginMsg.innerHTML = "";
-      try {
+      try{
         await signInWithEmailAndPassword(auth, emailEl.value.trim(), passEl.value.trim());
-      } catch (err) {
+      }catch(err){
         console.error(err);
-        showMsg(loginMsg, err.message, false);
+        showMsg(loginMsg, "No se pudo entrar. Revisa correo/clave.", false);
       }
     });
 
-    document.getElementById("signupBtn").addEventListener("click", async () => {
+    document.getElementById("signupBtn").addEventListener("click", async ()=>{
       loginMsg.innerHTML = "";
-      try {
+      try{
         await createUserWithEmailAndPassword(auth, emailEl.value.trim(), passEl.value.trim());
-        showMsg(loginMsg, "Cuenta creada ✅ Ahora ya puedes entrar siempre.", true);
-      } catch (err) {
+        showMsg(loginMsg, "Cuenta creada ✅ Ahora entra con “Entrar”.", true);
+      }catch(err){
         console.error(err);
-        showMsg(loginMsg, err.message, false);
+        showMsg(loginMsg, "No se pudo crear cuenta. Revisa consola (F12).", false);
       }
     });
 
-    logoutBtn.addEventListener("click", () => signOut(auth));
+    logoutBtn.addEventListener("click", ()=> signOut(auth));
 
     refreshBtn.addEventListener("click", loadLeads);
-    statusFilter.addEventListener("change", loadLeads);
+    statusFilter.addEventListener("change", renderRows);
 
-    // AUTH STATE
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
+    onAuthStateChanged(auth, (user)=>{
+      if(user){
         userBadge.textContent = user.email;
         logoutBtn.style.display = "inline-block";
         loginCard.style.display = "none";
