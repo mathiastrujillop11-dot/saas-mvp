@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quiero ser piloto | Bookeo Pro</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <small>PROGRAMA PILOTO — LIMA</small>
+        <h1>Quiero ser piloto (gratis 7 días)</h1>
+        <p>Déjame tus datos. Te escribo por WhatsApp para activarlo y configurarlo contigo.</p>
+
+        <a class="btn" href="./index.html">← Volver</a>
+      </div>
+
+      <!-- FORM: LEADS -->
+      <div class="card" id="form">
+        <form id="leadForm">
+          <div class="grid">
+            <div>
+              <label>Nombre de la barbería</label>
+              <input name="barbershopName" required placeholder="Ej: Barbería El Barrio" />
+            </div>
+
+            <div>
+              <label>Tu WhatsApp</label>
+              <input name="whatsapp" required placeholder="Ej: 999 999 999" />
+            </div>
+
+            <div>
+              <label>¿Cuántas citas al día?</label>
+              <select name="citasPorDia" required>
+                <option value="">Elige</option>
+                <option value="1-5">1–5</option>
+                <option value="6-10">6–10</option>
+                <option value="11-20">11–20</option>
+                <option value="20+">20+</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Dolor principal</label>
+              <select name="dolor" required>
+                <option value="">Elige</option>
+                <option value="Desorden en WhatsApp">Desorden en WhatsApp</option>
+                <option value="Cancelaciones">Cancelaciones</option>
+                <option value="No tengo agenda clara">No tengo agenda clara</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" type="submit" id="leadBtn">Enviar solicitud</button>
+          <small>Al enviar aceptas que te contactemos por WhatsApp.</small>
+        </form>
+      </div>
+
+      <small>Hecho por Mathias — MVP en construcción</small>
+    </div>
+
+    <!-- Firebase (CDN) -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+      import {
+        getFirestore,
+        addDoc,
+        collection,
+        serverTimestamp,
+      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyBHny9qz-yjnk8SzYH5z1cH75_MDs2XX5g",
+        authDomain: "citas-saas-mvp.firebaseapp.com",
+        projectId: "citas-saas-mvp",
+        storageBucket: "citas-saas-mvp.firebasestorage.app",
+        messagingSenderId: "646207057968",
+        appId: "1:646207057968:web:e10fd2c87131ec0242bdf5",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+
+      window.db = db;
+      window.addDoc = addDoc;
+      window.collection = collection;
+      window.serverTimestamp = serverTimestamp;
+    </script>
+
+    <!-- Guardar LEAD en Firestore -->
+    <script>
+      const leadForm = document.getElementById("leadForm");
+      const leadBtn = document.getElementById("leadBtn");
+
+      leadForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        leadBtn.disabled = true;
+        leadBtn.textContent = "Enviando...";
+
+        const data = new FormData(leadForm);
+
+        const payload = {
+          barbershopName: data.get("barbershopName") || "",
+          whatsapp: data.get("whatsapp") || "",
+          citasPorDia: data.get("citasPorDia") || "",
+          dolor: data.get("dolor") || "",
+          status: "pending",
+          createdAt: window.serverTimestamp(),
+        };
+
+        try {
+          await window.addDoc(window.collection(window.db, "leads"), payload);
+          alert("Listo ✅ Te escribimos por WhatsApp.");
+          leadForm.reset();
+        } catch (err) {
+          console.error(err);
+          alert("Error guardando. Abre Consola (F12) y dime el error.");
+        } finally {
+          leadBtn.disabled = false;
+          leadBtn.textContent = "Enviar solicitud";
+        }
+      });
+    </script>
+  </body>
+</html>
