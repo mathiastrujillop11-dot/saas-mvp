@@ -63,72 +63,48 @@
 
     <!-- Firebase (CDN) -->
     <script type="module">
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-      import {
-        getFirestore,
-        addDoc,
-        collection,
-        serverTimestamp,
-      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyBHny9qz-yjnk8SzYH5z1cH75_MDs2XX5g",
-        authDomain: "citas-saas-mvp.firebaseapp.com",
-        projectId: "citas-saas-mvp",
-        storageBucket: "citas-saas-mvp.firebasestorage.app",
-        messagingSenderId: "646207057968",
-        appId: "1:646207057968:web:e10fd2c87131ec0242bdf5",
+  const leadForm = document.getElementById("leadForm");
+  const leadBtn = document.getElementById("leadBtn");
+
+  leadForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    leadBtn.disabled = true;
+    leadBtn.textContent = "Enviando...";
+
+    try {
+      const data = new FormData(leadForm);
+
+      const payload = {
+        barbershopName: data.get("barbershopName") || "",
+        whatsapp: data.get("whatsapp") || "",
+        citasPorDia: data.get("citasPorDia") || "",
+        dolor: data.get("dolor") || "",
+        status: "pending",
+        createdAt: window.serverTimestamp(),
       };
 
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
+      // 1) Firebase
+      await window.addDoc(window.collection(window.db, "leads"), payload);
 
-      window.db = db;
-      window.addDoc = addDoc;
-      window.collection = collection;
-      window.serverTimestamp = serverTimestamp;
-    </script>
-
-    <!-- Guardar LEAD en Firestore -->
-    <script>
-      const leadForm = document.getElementById("leadForm");
-      const leadBtn = document.getElementById("leadBtn");
-
-      leadForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-
-        leadBtn.disabled = true;
-        leadBtn.textContent = "Enviando...";
-
-        const data = new FormData(leadForm);
-
-        const payload = {
-          barbershopName: data.get("barbershopName") || "",
-          whatsapp: data.get("whatsapp") || "",
-          citasPorDia: data.get("citasPorDia") || "",
-          dolor: data.get("dolor") || "",
-          status: "pending",
-          createdAt: window.serverTimestamp(),
-        };
-
-        try {
-          await window.addDoc(window.collection(window.db, "leads"), payload);
-          alert("Listo ✅ Te escribimos por WhatsApp.");
-          leadForm.reset();
-        } catch (err) {
-          console.error(err);
-          alert("Error guardando. Abre Consola (F12) y dime el error.");
-        } finally {
-          leadBtn.disabled = false;
-          leadBtn.textContent = "Enviar solicitud";
-        }
+      // 2) Formspree (correo)
+      await fetch("https://formspree.io/f/xrejzrgz", {
+        method: "POST",
+        body: data,
+        headers: { Accept: "application/json" },
       });
-      // Enviar también a Formspree (correo)
-await fetch("https://formspree.io/f/xrejzrgz", {
-  method: "POST",
-  headers: { "Accept": "application/json" },
-  body: new FormData(leadForm)
-});
-    </script>
+
+      alert("Listo ✅ Te escribimos por WhatsApp.");
+      leadForm.reset();
+    } catch (err) {
+      console.error(err);
+      alert("Error. Abre Consola (F12) y mira el error en rojo.");
+    } finally {
+      leadBtn.disabled = false;
+      leadBtn.textContent = "Enviar solicitud";
+    }
+  });
+</script>
   </body>
 </html>
