@@ -19,21 +19,23 @@
 
     <div id="loginCard" class="card">
       <h2 style="margin-top:0;">Ingresar</h2>
+
       <div class="row">
         <div>
           <label>Correo</label>
-          <input id="email" type="email" placeholder="tu correo" />
+          <input id="email" type="email" placeholder="tu correo" autocomplete="email" />
         </div>
         <div>
           <label>Contraseña</label>
-          <input id="password" type="password" placeholder="tu contraseña" />
+          <input id="password" type="password" placeholder="tu contraseña" autocomplete="current-password" />
         </div>
       </div>
+
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
         <button id="loginBtn" class="btn primary">Entrar</button>
-        <button id="signupBtn" class="btn">Crear cuenta (solo 1 vez)</button>
+        <button id="resetBtn" class="btn">Olvidé mi contraseña</button>
       </div>
-      <p><small>Tip: crea tu cuenta una vez y luego solo “Entrar”.</small></p>
+
       <div id="loginMsg"></div>
     </div>
 
@@ -41,7 +43,7 @@
       <div class="topbar">
         <div>
           <h2 style="margin:0;">Leads guardados</h2>
-          <small>Se cargan desde Firestore (colección: <b>leads</b>)</small>
+          <small>colección: <b>leads</b></small>
         </div>
 
         <div style="display:flex;gap:10px;align-items:center;">
@@ -51,7 +53,6 @@
             <option value="contacted">contacted</option>
             <option value="closed">closed</option>
           </select>
-
           <button id="refreshBtn" class="btn">Actualizar</button>
         </div>
       </div>
@@ -82,7 +83,7 @@
       getFirestore, collection, getDocs, query, where, orderBy, updateDoc, doc
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import {
-      getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut
+      getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
     const firebaseConfig = {
@@ -99,37 +100,31 @@
     const auth = getAuth(app);
 
     const loginCard = document.getElementById("loginCard");
-    const dataCard = document.getElementById("dataCard");
-    const rows = document.getElementById("rows");
-    const loginMsg = document.getElementById("loginMsg");
-    const dataMsg = document.getElementById("dataMsg");
+    const dataCard  = document.getElementById("dataCard");
+    const rows      = document.getElementById("rows");
+    const loginMsg  = document.getElementById("loginMsg");
+    const dataMsg   = document.getElementById("dataMsg");
     const userBadge = document.getElementById("userBadge");
     const logoutBtn = document.getElementById("logoutBtn");
-
-    const emailEl = document.getElementById("email");
-    const passEl  = document.getElementById("password");
-
+    const emailEl   = document.getElementById("email");
+    const passEl    = document.getElementById("password");
     const statusFilter = document.getElementById("statusFilter");
-    const refreshBtn = document.getElementById("refreshBtn");
-
-    let loading = false;
-    let loadToken = 0;
+    const refreshBtn   = document.getElementById("refreshBtn");
 
     function showMsg(el, text, ok=true){
       el.innerHTML = `<p style="color:${ok ? "#8bffb0" : "#ff8b8b"};margin:10px 0 0;">${text}</p>`;
     }
 
-    async function loadLeads(){
-      // anti “doble refresh”
-      if (loading) return;
-      loading = true;
-      const myToken = ++loadToken;
+    let loading = false;
 
-      refreshBtn.disabled = true;
-      refreshBtn.textContent = "Cargando...";
+    async function loadLeads(){
+      if(loading) return;
+      loading = true;
 
       rows.innerHTML = "";
       dataMsg.innerHTML = "";
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = "Cargando...";
 
       try{
         const leadsRef = collection(db, "leads");
@@ -142,34 +137,29 @@
 
         const snap = await getDocs(qy);
 
-        // si hubo otra carga después, esta ya no pinta nada
-        if (myToken !== loadToken) return;
-
         if(snap.empty){
-          showMsg(dataMsg, "No hay leads todavía.", true);
+          showMsg(dataMsg, "No hay leads.", true);
           return;
         }
 
-        const frag = document.createDocumentFragment();
-
-        snap.forEach((d) => {
+        snap.forEach((d)=>{
           const lead = d.data();
           const tr = document.createElement("tr");
-
-          const phone = (lead.whatsapp || "").replace(/\s+/g,"");
-          const waLink = phone ? `https://wa.me/51${phone}?text=Hola%20%F0%9F%91%8B%20vi%20tu%20registro%20para%20el%20piloto%20de%20citas.` : "#";
+          const phone = (lead.whatsapp || "").replace(/\D/g,"");
+          const waLink = phone ? `https://wa.me/51${phone}?text=Hola%20👋%20vi%20tu%20registro%20para%20el%20piloto.` : "#";
           const status = lead.status || "pending";
+          const created = lead.createdAt?.toDate ? lead.createdAt.toDate().toLocaleString() : "";
 
           tr.innerHTML = `
             <td>${lead.barbershopName || "-"}</td>
-            <td>${lead.whatsapp || "-"}<br><small>${lead.createdAt?.toDate ? lead.createdAt.toDate().toLocaleString() : ""}</small></td>
+            <td>${lead.whatsapp || "-"}<br><small>${created}</small></td>
             <td>${lead.citasPorDia || "-"}</td>
             <td>${lead.dolor || "-"}</td>
             <td>
               <select data-id="${d.id}" class="statusSel">
-                <option ${status==="pending"?"selected":""}>pending</option>
-                <option ${status==="contacted"?"selected":""}>contacted</option>
-                <option ${status==="closed"?"selected":""}>closed</option>
+                <option value="pending" ${status==="pending"?"selected":""}>pending</option>
+                <option value="contacted" ${status==="contacted"?"selected":""}>contacted</option>
+                <option value="closed" ${status==="closed"?"selected":""}>closed</option>
               </select>
             </td>
             <td>
@@ -177,72 +167,75 @@
               <button class="btn primary saveBtn" data-id="${d.id}">Guardar</button>
             </td>
           `;
-
-          frag.appendChild(tr);
+          rows.appendChild(tr);
         });
-
-        rows.appendChild(frag);
 
         document.querySelectorAll(".saveBtn").forEach(btn=>{
           btn.addEventListener("click", async ()=>{
-            const id = btn.getAttribute("data-id");
-            const sel = document.querySelector(\`.statusSel[data-id="\${id}"]\`);
+            const id = btn.dataset.id;
+            const sel = document.querySelector(`.statusSel[data-id="${id}"]`);
             const newStatus = sel.value;
 
             btn.disabled = true;
+            const old = btn.textContent;
             btn.textContent = "Guardando...";
 
             try{
-              await updateDoc(doc(db, "leads", id), { status: newStatus });
-              showMsg(dataMsg, "Estado actualizado ✅", true);
-
-              // clave: refresca y si estás en pending, desaparece
+              await updateDoc(doc(db,"leads",id), { status:newStatus });
+              showMsg(dataMsg, "Guardado ✅", true);
               await loadLeads();
             }catch(err){
               console.error(err);
-              showMsg(dataMsg, "No se pudo actualizar (revisa Rules / login).", false);
+              showMsg(dataMsg, "No se pudo guardar.", false);
             }finally{
               btn.disabled = false;
-              btn.textContent = "Guardar";
+              btn.textContent = old;
             }
           });
         });
 
       }catch(err){
         console.error(err);
-        showMsg(dataMsg, "Error cargando leads. Revisa consola (F12).", false);
+        showMsg(dataMsg, "Error cargando.", false);
       }finally{
-        if (myToken === loadToken){
-          refreshBtn.disabled = false;
-          refreshBtn.textContent = "Actualizar";
-          loading = false;
-        }
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = "Actualizar";
+        loading = false;
       }
     }
 
-    // auth
+    // ENTRAR
     document.getElementById("loginBtn").addEventListener("click", async ()=>{
       loginMsg.innerHTML = "";
+      const email = emailEl.value.trim();
+      const pass  = passEl.value;
+
       try{
-        await signInWithEmailAndPassword(auth, emailEl.value.trim(), passEl.value.trim());
+        await signInWithEmailAndPassword(auth, email, pass);
       }catch(err){
         console.error(err);
         showMsg(loginMsg, err.message, false);
       }
     });
 
-    document.getElementById("signupBtn").addEventListener("click", async ()=>{
+    // RESET PASS
+    document.getElementById("resetBtn").addEventListener("click", async ()=>{
       loginMsg.innerHTML = "";
+      const email = emailEl.value.trim();
+      if(!email){
+        showMsg(loginMsg, "Escribe tu correo primero.", false);
+        return;
+      }
       try{
-        await createUserWithEmailAndPassword(auth, emailEl.value.trim(), passEl.value.trim());
-        showMsg(loginMsg, "Cuenta creada ✅ Ahora ya puedes entrar siempre.", true);
+        await sendPasswordResetEmail(auth, email);
+        showMsg(loginMsg, "Te envié un correo para cambiar tu contraseña ✅", true);
       }catch(err){
         console.error(err);
         showMsg(loginMsg, err.message, false);
       }
     });
 
-    logoutBtn.addEventListener("click", ()=> signOut(auth));
+    logoutBtn.addEventListener("click", ()=>signOut(auth));
     refreshBtn.addEventListener("click", loadLeads);
     statusFilter.addEventListener("change", loadLeads);
 
@@ -253,7 +246,7 @@
         loginCard.style.display = "none";
         dataCard.style.display = "block";
         loadLeads();
-      } else {
+      }else{
         userBadge.textContent = "No logueado";
         logoutBtn.style.display = "none";
         loginCard.style.display = "block";
