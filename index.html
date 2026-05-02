@@ -32,7 +32,7 @@
           target="_blank" rel="noopener">Pedir demo por WhatsApp</a>
 
         <a class="btn" href="#form">Quiero ser piloto</a>
-        <a class="btn" href="#agendar">Agendar cita</a>
+       <a class="btn" href="/agendar.html">Agendar cita</a>
       </div>
 
       <div class="grid">
@@ -96,52 +96,7 @@
           <button class="btn btn-primary" type="submit" id="leadBtn">Enviar</button>
         </form>
       </div>
-
-      <!-- FORM 2: APPOINTMENTS -->
-      <div class="card" id="agendar">
-        <h2>Agendar cita</h2>
-        <p>Completa esto y te confirmamos por WhatsApp.</p>
-
-        <form id="appointmentForm">
-          <div class="grid">
-            <div>
-              <label>Nombre del cliente</label>
-              <input name="customerName" required placeholder="Ej: Juan Pérez" />
-            </div>
-
-            <div>
-              <label>WhatsApp del cliente</label>
-              <input name="customerPhone" required placeholder="Ej: 999 999 999" />
-            </div>
-
-            <div>
-              <label>Servicio</label>
-              <select name="service" required>
-                <option value="">Elige</option>
-                <option value="Corte">Corte</option>
-                <option value="Barba">Barba</option>
-                <option value="Corte + Barba">Corte + Barba</option>
-              </select>
-            </div>
-
-            <div>
-              <label>Fecha</label>
-              <input type="date" name="date" required />
-            </div>
-
-            <div>
-              <label>Hora</label>
-              <input type="time" name="time" required />
-            </div>
-          </div>
-
-          <button class="btn btn-primary" type="submit" id="appointmentBtn">Agendar</button>
-        </form>
-      </div>
-
-      <small>Hecho por Mathias — MVP en construcción</small>
-    </div>
-
+      
     <!-- Firebase (CDN) -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";

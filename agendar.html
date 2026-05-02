@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agendar cita | Bookeo Pro</title>
+</head>
+<body>
+
+<div class="card" id="agendar">
+        <h2>Agendar cita</h2>
+        <p>Completa esto y te confirmamos por WhatsApp.</p>
+
+        <form id="appointmentForm">
+          <div class="grid">
+            <div>
+              <label>Nombre del cliente</label>
+              <input name="customerName" required placeholder="Ej: Juan Pérez" />
+            </div>
+
+            <div>
+              <label>WhatsApp del cliente</label>
+              <input name="customerPhone" required placeholder="Ej: 999 999 999" />
+            </div>
+
+            <div>
+              <label>Servicio</label>
+              <select name="service" required>
+                <option value="">Elige</option>
+                <option value="Corte">Corte</option>
+                <option value="Barba">Barba</option>
+                <option value="Corte + Barba">Corte + Barba</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Fecha</label>
+              <input type="date" name="date" required />
+            </div>
+
+            <div>
+              <label>Hora</label>
+              <input type="time" name="time" required />
+            </div>
+          </div>
+
+          <button class="btn btn-primary" type="submit" id="appointmentBtn">Agendar</button>
+          <p id="waConfirm" style="margin-top:10px;"></p>
+        </form>
+      </div>
+
+      <small>Hecho por Mathias — MVP en construcción</small>
+    </div>
+
+</body>
+</html>
