@@ -1,13 +1,12 @@
 <!doctype html>
 <html lang="es">
 <head>
- 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin — Citas SaaS MVP</title>
-   <link rel="stylesheet" href="./style.css">
-  
+  <link rel="stylesheet" href="./style.css">
 </head>
+
 <body>
   <div class="wrap">
     <div class="topbar">
@@ -44,13 +43,15 @@
           <h2 style="margin:0;">Leads guardados</h2>
           <small>Se cargan desde Firestore (colección: <b>leads</b>)</small>
         </div>
+
         <div style="display:flex;gap:10px;align-items:center;">
           <select id="statusFilter">
+            <option value="pending" selected>pending</option>
             <option value="">Todos</option>
-            <option value="pending">pending</option>
             <option value="contacted">contacted</option>
             <option value="closed">closed</option>
           </select>
+
           <button id="refreshBtn" class="btn">Actualizar</button>
         </div>
       </div>
@@ -70,6 +71,7 @@
           <tbody id="rows"></tbody>
         </table>
       </div>
+
       <div id="dataMsg" style="margin-top:10px;"></div>
     </div>
   </div>
@@ -110,29 +112,45 @@
     const statusFilter = document.getElementById("statusFilter");
     const refreshBtn = document.getElementById("refreshBtn");
 
+    let loading = false;
+    let loadToken = 0;
+
     function showMsg(el, text, ok=true){
       el.innerHTML = `<p style="color:${ok ? "#8bffb0" : "#ff8b8b"};margin:10px 0 0;">${text}</p>`;
     }
 
     async function loadLeads(){
+      // anti “doble refresh”
+      if (loading) return;
+      loading = true;
+      const myToken = ++loadToken;
+
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = "Cargando...";
+
       rows.innerHTML = "";
       dataMsg.innerHTML = "";
 
       try{
         const leadsRef = collection(db, "leads");
-        let qy = query(leadsRef, orderBy("createdAt", "desc"));
-
         const st = statusFilter.value;
+
+        let qy = query(leadsRef, orderBy("createdAt", "desc"));
         if(st){
           qy = query(leadsRef, where("status", "==", st), orderBy("createdAt", "desc"));
         }
 
         const snap = await getDocs(qy);
 
+        // si hubo otra carga después, esta ya no pinta nada
+        if (myToken !== loadToken) return;
+
         if(snap.empty){
           showMsg(dataMsg, "No hay leads todavía.", true);
           return;
         }
+
+        const frag = document.createDocumentFragment();
 
         snap.forEach((d) => {
           const lead = d.data();
@@ -140,7 +158,6 @@
 
           const phone = (lead.whatsapp || "").replace(/\s+/g,"");
           const waLink = phone ? `https://wa.me/51${phone}?text=Hola%20%F0%9F%91%8B%20vi%20tu%20registro%20para%20el%20piloto%20de%20citas.` : "#";
-
           const status = lead.status || "pending";
 
           tr.innerHTML = `
@@ -160,22 +177,33 @@
               <button class="btn primary saveBtn" data-id="${d.id}">Guardar</button>
             </td>
           `;
-          rows.appendChild(tr);
+
+          frag.appendChild(tr);
         });
 
-        // listeners para guardar cambios de status
+        rows.appendChild(frag);
+
         document.querySelectorAll(".saveBtn").forEach(btn=>{
           btn.addEventListener("click", async ()=>{
             const id = btn.getAttribute("data-id");
-            const sel = document.querySelector(`.statusSel[data-id="${id}"]`);
+            const sel = document.querySelector(\`.statusSel[data-id="\${id}"]\`);
             const newStatus = sel.value;
+
+            btn.disabled = true;
+            btn.textContent = "Guardando...";
 
             try{
               await updateDoc(doc(db, "leads", id), { status: newStatus });
               showMsg(dataMsg, "Estado actualizado ✅", true);
+
+              // clave: refresca y si estás en pending, desaparece
+              await loadLeads();
             }catch(err){
               console.error(err);
               showMsg(dataMsg, "No se pudo actualizar (revisa Rules / login).", false);
+            }finally{
+              btn.disabled = false;
+              btn.textContent = "Guardar";
             }
           });
         });
@@ -183,10 +211,16 @@
       }catch(err){
         console.error(err);
         showMsg(dataMsg, "Error cargando leads. Revisa consola (F12).", false);
+      }finally{
+        if (myToken === loadToken){
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = "Actualizar";
+          loading = false;
+        }
       }
     }
 
-    // auth flow
+    // auth
     document.getElementById("loginBtn").addEventListener("click", async ()=>{
       loginMsg.innerHTML = "";
       try{
@@ -209,7 +243,6 @@
     });
 
     logoutBtn.addEventListener("click", ()=> signOut(auth));
-
     refreshBtn.addEventListener("click", loadLeads);
     statusFilter.addEventListener("change", loadLeads);
 
