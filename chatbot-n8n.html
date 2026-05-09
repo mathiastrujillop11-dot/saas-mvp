@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chatbot · n8n Webhook</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f11;
+      --surface: #18181c;
+      --surface2: #222228;
+      --border: rgba(255,255,255,0.08);
+      --accent: #ff6b35;
+      --accent2: #ff9a6c;
+      --text: #f0ede8;
+      --text2: #9e9b95;
+      --text3: #5a5752;
+      --bot-bubble: #222228;
+      --user-bubble: #ff6b35;
+      --user-text: #fff;
+      --radius: 18px;
+      --radius-sm: 10px;
+      --font: 'DM Sans', sans-serif;
+      --mono: 'DM Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      font-family: var(--font);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    /* ── wrapper ── */
+    .chat-wrapper {
+      width: 100%;
+      max-width: 480px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 680px;
+      box-shadow: 0 0 0 1px rgba(255,107,53,0.08), 0 32px 64px rgba(0,0,0,0.5);
+    }
+
+    /* ── header ── */
+    .chat-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .bot-avatar {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ff6b35, #e84393);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .bot-avatar::after {
+      content: '';
+      width: 10px; height: 10px;
+      background: #22c55e;
+      border: 2px solid var(--surface);
+      border-radius: 50%;
+      position: absolute;
+      bottom: 1px; right: 1px;
+    }
+
+    .bot-info { flex: 1; }
+    .bot-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+    .bot-status { font-size: 11px; color: var(--text2); margin-top: 1px; }
+
+    .n8n-badge {
+      display: flex; align-items: center; gap: 5px;
+      background: rgba(255,107,53,0.12);
+      border: 1px solid rgba(255,107,53,0.25);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 11px;
+      color: var(--accent2);
+      font-family: var(--mono);
+    }
+
+    .n8n-badge svg { width: 13px; height: 13px; }
+
+    /* ── config bar ── */
+    .config-bar {
+      background: rgba(255,107,53,0.06);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .config-bar label {
+      font-size: 11px;
+      color: var(--text2);
+      white-space: nowrap;
+      font-family: var(--mono);
+    }
+
+    .config-bar input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 11px;
+      color: var(--text);
+      font-family: var(--mono);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .config-bar input:focus { border-color: rgba(255,107,53,0.4); }
+    .config-bar input::placeholder { color: var(--text3); }
+
+    .save-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: 7px;
+      padding: 5px 12px;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      font-family: var(--font);
+      white-space: nowrap;
+    }
+    .save-btn:hover { opacity: 0.85; }
+
+    /* ── messages ── */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--surface2) transparent;
+    }
+
+    .msg { display: flex; gap: 8px; max-width: 85%; }
+    .msg.bot { align-self: flex-start; align-items: flex-end; }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+    .msg-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ff6b35, #e84393);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .bubble {
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .msg.bot .bubble {
+      background: var(--bot-bubble);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+      color: var(--text);
+    }
+
+    .msg.user .bubble {
+      background: var(--user-bubble);
+      color: var(--user-text);
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg-time {
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 4px;
+      padding: 0 4px;
+    }
+    .msg.user .msg-time { text-align: right; }
+
+    /* ── typing indicator ── */
+    .typing { display: none; }
+    .typing.active { display: flex; }
+
+    .typing-dots {
+      background: var(--bot-bubble);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      border-bottom-left-radius: 4px;
+      padding: 12px 16px;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .typing-dots span {
+      width: 6px; height: 6px;
+      background: var(--text3);
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-5px); }
+    }
+
+    /* ── input area ── */
+    .chat-input {
+      border-top: 1px solid var(--border);
+      padding: 12px 14px;
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-shrink: 0;
+      background: var(--surface);
+    }
+
+    .input-box {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: var(--text);
+      font-family: var(--font);
+      resize: none;
+      outline: none;
+      max-height: 100px;
+      line-height: 1.4;
+      transition: border-color 0.2s;
+    }
+    .input-box:focus { border-color: rgba(255,107,53,0.35); }
+    .input-box::placeholder { color: var(--text3); }
+
+    .send-btn {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.15s, opacity 0.2s;
+    }
+    .send-btn:hover { opacity: 0.88; transform: scale(1.05); }
+    .send-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+    .send-btn svg { width: 18px; height: 18px; fill: #fff; }
+
+    /* ── error toast ── */
+    .toast {
+      position: absolute;
+      top: 16px; left: 50%; transform: translateX(-50%);
+      background: #dc2626;
+      color: #fff;
+      border-radius: 10px;
+      padding: 8px 16px;
+      font-size: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      white-space: nowrap;
+      z-index: 10;
+    }
+    .toast.show { opacity: 1; }
+
+    /* ── session info ── */
+    .session-info {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 16px;
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      flex-shrink: 0;
+    }
+
+    .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  </style>
+</head>
+<body>
+
+<div style="position:relative;">
+  <div class="toast" id="toast"></div>
+
+  <div class="chat-wrapper">
+
+    <!-- Header -->
+    <div class="chat-header">
+      <div class="bot-avatar">🤖</div>
+      <div class="bot-info">
+        <div class="bot-name">Asistente Virtual</div>
+        <div class="bot-status">Conectado a n8n · En línea</div>
+      </div>
+      <div class="n8n-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        n8n
+      </div>
+    </div>
+
+    <!-- Config webhook URL -->
+    <div class="config-bar">
+      <label>WEBHOOK</label>
+      <input type="text" id="webhookUrl" placeholder="https://tu-n8n.com/webhook/xxxx" />
+      <button class="save-btn" onclick="saveWebhook()">Guardar</button>
+    </div>
+
+    <!-- Session ID -->
+    <div class="session-info">
+      <div class="dot"></div>
+      <span>session_id: <span id="sessionId"></span></span>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-messages" id="chatMessages">
+
+      <!-- Welcome message -->
+      <div class="msg bot">
+        <div class="msg-avatar">🤖</div>
+        <div>
+          <div class="bubble">
+            ¡Hola! Soy tu asistente conectado a <strong>n8n</strong>. 
+            Configura tu webhook arriba y empieza a chatear. 
+            Cada mensaje se envía a tu flujo de n8n, igual que WhatsApp Business. 🚀
+          </div>
+          <div class="msg-time" id="welcomeTime"></div>
+        </div>
+      </div>
+
+      <!-- Typing indicator -->
+      <div class="msg bot typing" id="typing">
+        <div class="msg-avatar">🤖</div>
+        <div class="typing-dots">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Input -->
+    <div class="chat-input">
+      <textarea
+        class="input-box"
+        id="userInput"
+        placeholder="Escribe un mensaje..."
+        rows="1"
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  /* ── session ── */
+  const SESSION_KEY = 'n8n_chat_session';
+  const WEBHOOK_KEY = 'n8n_webhook_url';
+
+  let sessionId = localStorage.getItem(SESSION_KEY);
+  if (!sessionId) {
+    sessionId = 'sess_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now();
+    localStorage.setItem(SESSION_KEY, sessionId);
+  }
+  document.getElementById('sessionId').textContent = sessionId;
+
+  /* ── webhook ── */
+  const savedWebhook = localStorage.getItem(WEBHOOK_KEY) || '';
+  document.getElementById('webhookUrl').value = savedWebhook;
+
+  function saveWebhook() {
+    const url = document.getElementById('webhookUrl').value.trim();
+    if (url) {
+      localStorage.setItem(WEBHOOK_KEY, url);
+      showToast('✅ Webhook guardado');
+    } else {
+      showToast('⚠️ Ingresa una URL válida');
+    }
+  }
+
+  /* ── welcome time ── */
+  document.getElementById('welcomeTime').textContent = getTime();
+
+  /* ── helpers ── */
+  function getTime() {
+    return new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function scrollBottom() {
+    const c = document.getElementById('chatMessages');
+    c.scrollTo({ top: c.scrollHeight, behavior: 'smooth' });
+  }
+
+  function appendMessage(role, text) {
+    const container = document.getElementById('chatMessages');
+    const typing = document.getElementById('typing');
+
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ' + role;
+
+    const time = getTime();
+
+    if (role === 'bot') {
+      wrap.innerHTML = `
+        <div class="msg-avatar">🤖</div>
+        <div>
+          <div class="bubble">${escapeHtml(text)}</div>
+          <div class="msg-time">${time}</div>
+        </div>`;
+    } else {
+      wrap.innerHTML = `
+        <div>
+          <div class="bubble">${escapeHtml(text)}</div>
+          <div class="msg-time">${time}</div>
+        </div>`;
+    }
+
+    container.insertBefore(wrap, typing);
+    scrollBottom();
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+  }
+
+  function setTyping(active) {
+    document.getElementById('typing').classList.toggle('active', active);
+    if (active) scrollBottom();
+  }
+
+  /* ── main send ── */
+  async function sendMessage() {
+    const input = document.getElementById('userInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const webhookUrl = localStorage.getItem(WEBHOOK_KEY) || document.getElementById('webhookUrl').value.trim();
+    if (!webhookUrl) {
+      showToast('⚠️ Configura el webhook de n8n primero');
+      return;
+    }
+
+    input.value = '';
+    input.style.height = 'auto';
+    document.getElementById('sendBtn').disabled = true;
+
+    appendMessage('user', text);
+    setTyping(true);
+
+    /* 
+      Payload compatible con n8n — mismo formato que WhatsApp Business.
+      En n8n usa el nodo "Webhook" (método POST) y accede a:
+        {{ $json.body.message }}
+        {{ $json.body.sessionId }}
+        {{ $json.body.timestamp }}
+    */
+    const payload = {
+      message: text,
+      sessionId: sessionId,
+      timestamp: new Date().toISOString(),
+      from: 'web-chat',
+      channel: 'web',
+      /* Campos espejo de WhatsApp Business para compatibilidad */
+      entry: [{
+        changes: [{
+          value: {
+            messages: [{
+              from: sessionId,
+              text: { body: text },
+              type: 'text',
+              timestamp: Math.floor(Date.now() / 1000).toString()
+            }]
+          }
+        }]
+      }]
+    };
+
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      /* n8n puede responder con texto plano, JSON { reply } o JSON { message } */
+      const contentType = res.headers.get('content-type') || '';
+      let reply = '';
+
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        reply = data.reply || data.message || data.text || data.output
+               || JSON.stringify(data, null, 2);
+      } else {
+        reply = await res.text();
+      }
+
+      setTyping(false);
+      appendMessage('bot', reply || '(Sin respuesta del flujo)');
+
+    } catch (err) {
+      setTyping(false);
+      appendMessage('bot', `❌ Error al conectar con n8n:\n${err.message}`);
+      showToast('❌ Error de conexión');
+    } finally {
+      document.getElementById('sendBtn').disabled = false;
+      input.focus();
+    }
+  }
+</script>
+
+</body>
+</html>
