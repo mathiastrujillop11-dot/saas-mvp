@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Agendar Cita</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* ============================================================
+         ✏️  COLORES — cambia aquí el tema visual del chatbot
+         ============================================================ */
+      --bg:         #0d1a0f;        /* fondo de página */
+      --surface:    #111f13;        /* fondo del chat */
+      --surface2:   #172619;        /* burbujas bot / inputs */
+      --border:     rgba(74,222,128,0.12);
+      --accent:     #22c55e;        /* verde principal */
+      --accent-dk:  #16a34a;        /* verde oscuro (hover) */
+      --accent-lt:  rgba(34,197,94,0.10);
+      --text:       #e8f5ea;        /* texto principal */
+      --text2:      #7aad83;        /* texto secundario */
+      --text3:      #3d6644;        /* texto tenue */
+      --bot-bg:     #172619;
+      --user-bg:    #22c55e;
+      --user-txt:   #031b07;
+      --font:       'Sora', sans-serif;
+      --mono:       'JetBrains Mono', monospace;
+      --r:          16px;
+    }
+
+    body {
+      background: var(--bg);
+      font-family: var(--font);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    /* ── WRAPPER ── */
+    .chat-wrapper {
+      width: 100%;
+      max-width: 480px;
+      background: var(--surface);
+      border-radius: 20px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 680px;
+      border: 1px solid var(--border);
+      box-shadow: 0 0 0 1px rgba(34,197,94,0.06), 0 24px 60px rgba(0,0,0,0.5);
+    }
+
+    /* ── HEADER ── */
+    .chat-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      background: var(--surface);
+    }
+
+    .avatar {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: var(--accent-lt);
+      border: 1.5px solid rgba(34,197,94,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .avatar::after {
+      content: '';
+      width: 10px; height: 10px;
+      background: var(--accent);
+      border: 2px solid var(--surface);
+      border-radius: 50%;
+      position: absolute; bottom: 1px; right: 1px;
+    }
+
+    .header-info { flex: 1; }
+
+    /* ============================================================
+       ✏️  NOMBRE Y SUBTÍTULO DEL BOT — cámbialo en el HTML abajo
+       ============================================================ */
+    .bot-name { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.02em; }
+    .bot-sub  { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+    .progress-wrap { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+    .progress-label { font-size: 10px; color: var(--text3); font-family: var(--mono); }
+    .progress-bar {
+      width: 72px; height: 3px;
+      background: var(--surface2);
+      border-radius: 99px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 99px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+
+    /* ── MESSAGES ── */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--surface2) transparent;
+    }
+
+    .msg { display: flex; gap: 8px; max-width: 88%; animation: fadeUp 0.25s ease; }
+    .msg.bot  { align-self: flex-start; align-items: flex-end; }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-av {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--accent-lt);
+      border: 1px solid rgba(34,197,94,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; flex-shrink: 0;
+    }
+
+    .bubble {
+      padding: 10px 14px;
+      font-size: 13.5px;
+      line-height: 1.55;
+      word-break: break-word;
+    }
+    .msg.bot .bubble {
+      background: var(--bot-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--r) var(--r) var(--r) 4px;
+      color: var(--text);
+    }
+    .msg.user .bubble {
+      background: var(--user-bg);
+      color: var(--user-txt);
+      border-radius: var(--r) var(--r) 4px var(--r);
+      font-weight: 500;
+    }
+
+    /* ── OPCIONES ── */
+    .options-row {
+      display: flex; flex-wrap: wrap; gap: 7px;
+      margin-left: 36px;
+      animation: fadeUp 0.3s ease 0.1s both;
+    }
+    .opt-btn {
+      background: var(--accent-lt);
+      border: 1.5px solid rgba(34,197,94,0.35);
+      border-radius: 20px;
+      padding: 7px 16px;
+      font-size: 12.5px;
+      color: var(--accent);
+      cursor: pointer;
+      font-family: var(--font);
+      font-weight: 500;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .opt-btn:hover {
+      background: var(--accent);
+      color: var(--user-txt);
+      border-color: var(--accent);
+    }
+
+    /* ── TYPING ── */
+    .typing { display: none; }
+    .typing.active { display: flex; }
+    .typing-dots {
+      background: var(--bot-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--r) var(--r) var(--r) 4px;
+      padding: 12px 16px;
+      display: flex; gap: 4px; align-items: center;
+    }
+    .typing-dots span {
+      width: 6px; height: 6px;
+      background: var(--text3);
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%,60%,100% { transform: translateY(0); }
+      30%          { transform: translateY(-5px); }
+    }
+
+    /* ── RESUMEN FINAL ── */
+    .summary-card {
+      background: var(--accent-lt);
+      border: 1.5px solid rgba(34,197,94,0.2);
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 12.5px;
+      line-height: 1.8;
+      margin-left: 36px;
+      animation: fadeUp 0.3s ease;
+      color: var(--text);
+    }
+    .summary-card strong { color: var(--accent); font-weight: 600; }
+    .summary-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    /* ── INPUT ── */
+    .chat-input {
+      border-top: 1px solid var(--border);
+      padding: 12px 14px;
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-shrink: 0;
+      background: var(--surface);
+    }
+    .input-box {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 13.5px;
+      color: var(--text);
+      font-family: var(--font);
+      resize: none;
+      outline: none;
+      max-height: 100px;
+      line-height: 1.4;
+      transition: border-color 0.2s;
+    }
+    .input-box:focus { border-color: rgba(34,197,94,0.4); }
+    .input-box::placeholder { color: var(--text3); }
+    .input-box:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* input tipo fecha/hora nativo */
+    .input-native {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 13.5px;
+      color: var(--text);
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.2s;
+      color-scheme: dark;
+    }
+    .input-native:focus { border-color: rgba(34,197,94,0.4); }
+    .input-native:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .send-btn {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.15s, opacity 0.2s;
+    }
+    .send-btn:hover { opacity: 0.85; transform: scale(1.05); }
+    .send-btn:disabled { opacity: 0.25; cursor: not-allowed; transform: none; }
+    .send-btn svg { width: 17px; height: 17px; fill: var(--user-txt); }
+
+    /* ── FOOTER ── */
+    .page-footer {
+      margin-top: 14px;
+      font-size: 11px;
+      color: var(--text3);
+      font-family: var(--mono);
+      letter-spacing: 0.02em;
+    }
+  </style>
+</head>
+<body>
+
+<div class="chat-wrapper">
+
+  <!-- ============================================================
+       ✏️  HEADER — cambia el nombre y subtítulo del bot aquí
+       ============================================================ -->
+  <div class="chat-header">
+    <div class="avatar">✂️</div>
+    <div class="header-info">
+      <div class="bot-name">Agenda tu Cita</div>
+      <div class="bot-sub">Completa esto y te confirmamos por WhatsApp</div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label" id="progressLabel">0 / 0</div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+  </div>
+  <!-- ============================================================ -->
+
+  <div class="chat-messages" id="chatMessages">
+    <div class="msg bot typing" id="typing">
+      <div class="msg-av">✂️</div>
+      <div class="typing-dots"><span></span><span></span><span></span></div>
+    </div>
+  </div>
+
+  <div class="chat-input" id="inputArea">
+    <textarea class="input-box" id="userInput"
+      placeholder="Escribe tu respuesta..."
+      rows="1"
+      onkeydown="handleKey(event)"
+      oninput="autoResize(this)"
+    ></textarea>
+    <button class="send-btn" id="sendBtn" onclick="handleUserInput()">
+      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+    </button>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     ✏️  PIE DE PÁGINA — cámbialo o bórralo
+     ============================================================ -->
+<div class="page-footer">Hecho por Mathias — MVP en construcción</div>
+<!-- ============================================================ -->
+
+
+<script>
+/* ================================================================
+   🔧 ZONA DE CONFIGURACIÓN — EDITA AQUÍ EL FLUJO DEL BOT
+   ================================================================
+
+   TIPOS DE PASO:
+   - 'texto'    → escribe libremente
+   - 'numero'   → solo números (valida longitud mínima)
+   - 'email'    → valida formato de correo
+   - 'opciones' → botones de selección rápida
+   - 'fecha'    → selector de fecha nativo (calendario)
+   - 'hora'     → selector de hora nativo
+
+   En 'pregunta' puedes usar {clave} para insertar respuestas anteriores.
+   Ejemplo: 'Gracias {nombre}, ¿cuál es tu número?'
+   ================================================================ */
+
+const STEPS = [
+
+  /* ── PASO 1 — NOMBRE ───────────────────────────────────────────
+     ✏️  Cambia el mensaje de bienvenida y la pregunta del nombre
+  ─────────────────────────────────────────────────────────────── */
+  {
+    key:      'nombre',
+    pregunta: '¡Hola! 👋 Bienvenido. Para agendar tu cita, ¿cuál es tu nombre completo?',
+    tipo:     'texto',
+    errorMsg: 'Por favor ingresa tu nombre para continuar.',
+  },
+
+  /* ── PASO 2 — WHATSAPP ─────────────────────────────────────────
+     ✏️  Cambia la pregunta del número de WhatsApp
+  ─────────────────────────────────────────────────────────────── */
+  {
+    key:      'whatsapp',
+    pregunta: 'Perfecto, {nombre} 😊 ¿Cuál es tu número de WhatsApp?',
+    tipo:     'numero',
+    errorMsg: 'Ingresa solo números (mínimo 7 dígitos).',
+  },
+
+  /* ── PASO 3 — SERVICIO ─────────────────────────────────────────
+     ✏️  Cambia las opciones de servicio con los tuyos
+         Agrega o quita elementos del array 'opciones'
+  ─────────────────────────────────────────────────────────────── */
+  {
+    key:      'servicio',
+    pregunta: '¿Qué servicio deseas?',
+    tipo:     'opciones',
+    opciones: [
+      'Corte de barba',       // ✏️ Cambia este texto
+      'Corte de pelo',        // ✏️ Cambia este texto
+      'Corte + barba',        // ✏️ Cambia este texto
+      'Compra de productos',  // ✏️ Cambia este texto
+    ],
+  },
+
+  /* ── PASO 4 — FECHA ────────────────────────────────────────────
+     ✏️  Cambia la pregunta de la fecha (selector calendario)
+  ─────────────────────────────────────────────────────────────── */
+  {
+    key:      'fecha',
+    pregunta: '¿Qué día prefieres para tu cita?',
+    tipo:     'fecha',
+    errorMsg: 'Por favor selecciona una fecha.',
+  },
+
+  /* ── PASO 5 — HORA ─────────────────────────────────────────────
+     ✏️  Cambia la pregunta de la hora (selector de tiempo)
+  ─────────────────────────────────────────────────────────────── */
+  {
+    key:      'hora',
+    pregunta: '¿A qué hora te viene bien?',
+    tipo:     'hora',
+    errorMsg: 'Por favor selecciona una hora.',
+  },
+
+  /* ── ¿QUIERES MÁS PASOS? ────────────────────────────────────────
+     Copia y pega un bloque de los de arriba aquí.
+     Ejemplo de pregunta extra tipo texto:
+
+  {
+    key:      'notas',
+    pregunta: '¿Alguna indicación especial para tu cita?',
+    tipo:     'texto',
+  },
+
+  ─────────────────────────────────────────────────────────────── */
+
+];
+
+/* ================================================================
+   ✏️  MENSAJE FINAL — lo que el bot muestra al terminar
+       Puedes usar {nombre}, {whatsapp}, {servicio}, {fecha}, {hora}
+   ================================================================ */
+const MENSAJE_FINAL = `¡Listo, {nombre}! 🎉 Tu cita para <strong>{servicio}</strong> está agendada para el <strong>{fecha}</strong> a las <strong>{hora}</strong>. Te confirmaremos por WhatsApp al {whatsapp}. ¡Hasta pronto! ✂️`;
+
+/* ================================================================
+   ✏️  ETIQUETAS del resumen (nombre visible de cada campo)
+   ================================================================ */
+const ETIQUETAS = {
+  nombre:   'Nombre',
+  whatsapp: 'WhatsApp',
+  servicio: 'Servicio',
+  fecha:    'Fecha',
+  hora:     'Hora',
+  /* ✏️ Si agregaste pasos extra, añade aquí: clave: 'Etiqueta' */
+};
+
+/* ================================================================
+   ✏️  MENSAJE GENÉRICO cuando el campo está vacío
+   ================================================================ */
+const MSG_VACIO = 'Por favor completa este campo para continuar.';
+
+/* ================================================================
+   NO EDITES NADA DEBAJO DE ESTA LÍNEA
+   ================================================================ */
+
+let stepIndex = 0;
+const respuestas = {};
+
+function getTime() {
+  return new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+}
+function scrollBottom() {
+  const c = document.getElementById('chatMessages');
+  setTimeout(() => c.scrollTo({ top: c.scrollHeight, behavior: 'smooth' }), 50);
+}
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleUserInput(); }
+}
+function fillPlaceholders(text) {
+  return text.replace(/\{(\w+)\}/g, (_, k) => respuestas[k] || '');
+}
+function updateProgress() {
+  const total = STEPS.length;
+  document.getElementById('progressLabel').textContent = `${stepIndex} / ${total}`;
+  document.getElementById('progressFill').style.width = `${(stepIndex / total) * 100}%`;
+}
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+/* ── Mensajes bot ── */
+function appendBotMsg(html, delay = 600) {
+  const container = document.getElementById('chatMessages');
+  const typing    = document.getElementById('typing');
+  typing.classList.add('active');
+  scrollBottom();
+  return new Promise(resolve => {
+    setTimeout(() => {
+      typing.classList.remove('active');
+      const wrap = document.createElement('div');
+      wrap.className = 'msg bot';
+      wrap.innerHTML = `<div class="msg-av">✂️</div><div><div class="bubble">${html}</div></div>`;
+      container.insertBefore(wrap, typing);
+      scrollBottom();
+      resolve();
+    }, delay);
+  });
+}
+
+/* ── Mensaje usuario ── */
+function appendUserMsg(text) {
+  const container = document.getElementById('chatMessages');
+  const typing    = document.getElementById('typing');
+  const wrap      = document.createElement('div');
+  wrap.className  = 'msg user';
+  wrap.innerHTML  = `<div><div class="bubble">${escapeHtml(text)}</div></div>`;
+  container.insertBefore(wrap, typing);
+  scrollBottom();
+}
+
+/* ── Opciones ── */
+function appendOptions(opciones) {
+  const container = document.getElementById('chatMessages');
+  const typing    = document.getElementById('typing');
+  const row       = document.createElement('div');
+  row.className   = 'options-row';
+  row.id          = 'optionsRow';
+  opciones.forEach(op => {
+    const btn = document.createElement('button');
+    btn.className   = 'opt-btn';
+    btn.textContent = op;
+    btn.onclick     = () => { setInputValue(op); handleUserInput(); };
+    row.appendChild(btn);
+  });
+  container.insertBefore(row, typing);
+  disableTextInput('Selecciona una opción ↑');
+  document.getElementById('sendBtn').disabled = true;
+  scrollBottom();
+}
+
+function removeOptions() {
+  const row = document.getElementById('optionsRow');
+  if (row) row.remove();
+}
+
+/* ── Input especial (fecha/hora) ── */
+function showNativeInput(tipo) {
+  const area   = document.getElementById('inputArea');
+  const oldBox = document.getElementById('userInput');
+  oldBox.style.display = 'none';
+
+  const inp = document.createElement('input');
+  inp.type        = tipo === 'fecha' ? 'date' : 'time';
+  inp.className   = 'input-native';
+  inp.id          = 'nativeInput';
+  inp.style.flex  = '1';
+
+  /* fecha mínima = hoy */
+  if (tipo === 'fecha') {
+    inp.min = new Date().toISOString().split('T')[0];
+  }
+
+  area.insertBefore(inp, document.getElementById('sendBtn'));
+  document.getElementById('sendBtn').disabled = false;
+  setTimeout(() => inp.focus(), 100);
+}
+
+function removeNativeInput() {
+  const inp = document.getElementById('nativeInput');
+  if (inp) inp.remove();
+  document.getElementById('userInput').style.display = '';
+}
+
+function setInputValue(val) {
+  document.getElementById('userInput').value = val;
+}
+
+function disableTextInput(placeholder) {
+  const inp = document.getElementById('userInput');
+  inp.disabled    = true;
+  inp.placeholder = placeholder || 'Selecciona una opción';
+}
+
+function enableTextInput(placeholder) {
+  const inp = document.getElementById('userInput');
+  inp.disabled    = false;
+  inp.placeholder = placeholder || 'Escribe tu respuesta...';
+  setTimeout(() => inp.focus(), 100);
+}
+
+/* ── Resumen ── */
+function appendSummary() {
+  const container = document.getElementById('chatMessages');
+  const typing    = document.getElementById('typing');
+  const card      = document.createElement('div');
+  card.className  = 'summary-card';
+  let html = '<span class="summary-title">📋 Resumen de tu cita</span>';
+  Object.entries(respuestas).forEach(([k, v]) => {
+    const label = ETIQUETAS[k] || k;
+    html += `<strong>${label}:</strong> ${escapeHtml(v)}<br>`;
+  });
+  card.innerHTML = html;
+  container.insertBefore(card, typing);
+  scrollBottom();
+}
+
+/* ── Validación ── */
+function validate(step, value) {
+  if (!value || !value.trim()) return step.errorMsg || MSG_VACIO;
+  if (step.tipo === 'numero' && !/^\+?[\d\s\-()+]{7,}$/.test(value))
+    return step.errorMsg || 'Ingresa un número válido.';
+  if (step.tipo === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+    return step.errorMsg || 'Correo inválido.';
+  if (step.validar) {
+    const err = step.validar(value);
+    if (err) return err;
+  }
+  return null;
+}
+
+/* ── Leer valor actual según tipo de paso ── */
+function getCurrentValue(step) {
+  if (step.tipo === 'fecha' || step.tipo === 'hora') {
+    const inp = document.getElementById('nativeInput');
+    if (!inp) return '';
+    if (step.tipo === 'fecha') {
+      /* convierte yyyy-mm-dd a dd/mm/aaaa */
+      const d = inp.value;
+      if (!d) return '';
+      const [y, m, dy] = d.split('-');
+      return `${dy}/${m}/${y}`;
+    }
+    return inp.value;
+  }
+  return document.getElementById('userInput').value.trim();
+}
+
+/* ── Mostrar paso ── */
+async function showStep(index) {
+  if (index >= STEPS.length) { await finalize(); return; }
+  const step = STEPS[index];
+  await appendBotMsg(fillPlaceholders(step.pregunta));
+
+  removeOptions();
+  removeNativeInput();
+  enableTextInput();
+
+  if (step.tipo === 'opciones') {
+    appendOptions(step.opciones);
+  } else if (step.tipo === 'fecha' || step.tipo === 'hora') {
+    disableTextInput('Usa el selector de la derecha →');
+    showNativeInput(step.tipo);
+    document.getElementById('sendBtn').disabled = false;
+  } else {
+    document.getElementById('sendBtn').disabled = false;
+  }
+
+  updateProgress();
+}
+
+/* ── Finalizar ── */
+async function finalize() {
+  document.getElementById('sendBtn').disabled = true;
+  disableTextInput('Conversación finalizada');
+  removeOptions();
+  removeNativeInput();
+  appendSummary();
+  await appendBotMsg(fillPlaceholders(MENSAJE_FINAL), 800);
+  updateProgress();
+}
+
+/* ── Manejar input ── */
+async function handleUserInput() {
+  if (stepIndex >= STEPS.length) return;
+  const step  = STEPS[stepIndex];
+  const value = getCurrentValue(step);
+  const error = validate(step, value);
+
+  if (error) {
+    await appendBotMsg(escapeHtml(error), 300);
+    if (step.tipo === 'opciones') appendOptions(step.opciones);
+    return;
+  }
+
+  removeOptions();
+  appendUserMsg(value);
+  respuestas[step.key] = value;
+
+  const textInput = document.getElementById('userInput');
+  textInput.value = '';
+  textInput.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+
+  stepIndex++;
+  await showStep(stepIndex);
+}
+
+/* ── Inicio ── */
+window.addEventListener('load', () => {
+  updateProgress();
+  setTimeout(() => showStep(0), 600);
+});
+</script>
+</body>
+</html>
